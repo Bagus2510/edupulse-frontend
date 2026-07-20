@@ -19,6 +19,7 @@ import {
 } from "@radix-ui/react-icons"
 import { motion } from "motion/react"
 import * as React from "react"
+import { API_URL } from "@/lib/constants"
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -35,46 +36,16 @@ const itemVariants = {
 
 type PipelineStatus = "idle" | "running" | "success" | "failed"
 
-const dags = [
-  {
-    id: "oulad_etl",
-    name: "OULAD ETL Pipeline",
-    description: "Extract OULAD CSV → Transform → Load to data mart",
-    schedule: "@daily",
-    lastRun: "2026-07-19 06:00",
-    lastStatus: "success" as PipelineStatus,
-    tasks: 4,
-    duration: "1m 32s",
-  },
-  {
-    id: "oulad_validate",
-    name: "Data Validation",
-    description: "Validate raw data integrity & schema checks",
-    schedule: "@daily",
-    lastRun: "2026-07-19 06:02",
-    lastStatus: "success" as PipelineStatus,
-    tasks: 3,
-    duration: "45s",
-  },
-  {
-    id: "oulad_refresh_mart",
-    name: "Mart Refresh",
-    description: "Refresh aggregated data mart tables",
-    schedule: "Manual",
-    lastRun: "2026-07-18 14:30",
-    lastStatus: "success" as PipelineStatus,
-    tasks: 2,
-    duration: "28s",
-  },
-]
-
-const runHistory = [
-  { dag: "oulad_etl", run: "manual__2026-07-19T06:00:00", status: "success", duration: "1m 32s", tasks: "4/4" },
-  { dag: "oulad_validate", run: "manual__2026-07-19T06:02:00", status: "success", duration: "45s", tasks: "3/3" },
-  { dag: "oulad_etl", run: "scheduled__2026-07-18T06:00:00", status: "success", duration: "1m 28s", tasks: "4/4" },
-  { dag: "oulad_etl", run: "scheduled__2026-07-17T06:00:00", status: "failed", duration: "32s", tasks: "1/4" },
-  { dag: "oulad_refresh_mart", run: "manual__2026-07-18T14:30:00", status: "success", duration: "28s", tasks: "2/2" },
-]
+interface PipelineRun {
+  id: number
+  dag_id: string
+  run_id: string | null
+  status: PipelineStatus
+  duration: string | null
+  tasks_total: number | null
+  tasks_completed: number | null
+  created_at: string
+}
 
 function StatusIcon({ status }: { status: PipelineStatus }) {
   switch (status) {
@@ -92,12 +63,39 @@ function StatusIcon({ status }: { status: PipelineStatus }) {
 export default function PipelinePage() {
   const [pipelineStatus, setPipelineStatus] = React.useState<PipelineStatus>("idle")
   const [progress, setProgress] = React.useState(0)
+  const [runs, setRuns] = React.useState<PipelineRun[]>([])
+  const [loading, setLoading] = React.useState(true)
 
-  const handleTrigger = () => {
+  React.useEffect(() => {
+    fetchRuns()
+  }, [])
+
+  const fetchRuns = async () => {
+    try {
+      const res = await fetch(`${API_URL}/api/pipeline/runs`)
+      const data = await res.json()
+      setRuns(data)
+    } catch {
+      // ignore
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleTrigger = async (dagId: string = "oulad_etl") => {
     setPipelineStatus("running")
     setProgress(0)
+    try {
+      await fetch(`${API_URL}/api/pipeline/trigger`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dag_id: dagId }),
+      })
+      await fetchRuns()
+    } catch {
+      // ignore
+    }
 
-    // Simulate pipeline progress
     const interval = setInterval(() => {
       setProgress((prev) => {
         if (prev >= 100) {
@@ -127,7 +125,7 @@ export default function PipelinePage() {
           </p>
         </div>
         <Button
-          onClick={handleTrigger}
+          onClick={() => handleTrigger()}
           disabled={pipelineStatus === "running"}
           className="bg-pulse hover:bg-pulse/90 text-background"
         >
@@ -177,55 +175,62 @@ export default function PipelinePage() {
 
       {/* DAG Cards */}
       <motion.div variants={itemVariants} className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {dags.map((dag) => (
-          <Card key={dag.id} className="group">
-            <CardHeader className="pb-3">
-              <div className="flex items-start justify-between">
-                <div className="space-y-1">
-                  <CardTitle className="text-sm font-mono">{dag.name}</CardTitle>
-                  <CardDescription className="text-xs">{dag.description}</CardDescription>
+        {[
+          { id: "oulad_etl", name: "OULAD ETL Pipeline", description: "Extract OULAD CSV → Transform → Load to data mart", schedule: "@daily", tasks: 4 },
+          { id: "oulad_validate", name: "Data Validation", description: "Validate raw data integrity & schema checks", schedule: "@daily", tasks: 3 },
+          { id: "oulad_refresh_mart", name: "Mart Refresh", description: "Refresh aggregated data mart tables", schedule: "Manual", tasks: 2 },
+        ].map((dag) => {
+          const lastRun = runs.find((r) => r.dag_id === dag.id)
+          return (
+            <Card key={dag.id} className="group">
+              <CardHeader className="pb-3">
+                <div className="flex items-start justify-between">
+                  <div className="space-y-1">
+                    <CardTitle className="text-sm font-mono">{dag.name}</CardTitle>
+                    <CardDescription className="text-xs">{dag.description}</CardDescription>
+                  </div>
+                  <StatusIcon status={lastRun?.status || "idle"} />
                 </div>
-                <StatusIcon status={dag.lastStatus} />
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="grid grid-cols-2 gap-3 text-xs">
-                <div>
-                  <p className="text-muted-foreground mb-0.5">Jadwal</p>
-                  <p className="font-mono">{dag.schedule}</p>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="grid grid-cols-2 gap-3 text-xs">
+                  <div>
+                    <p className="text-muted-foreground mb-0.5">Jadwal</p>
+                    <p className="font-mono">{dag.schedule}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground mb-0.5">Tugas</p>
+                    <p className="font-mono">{dag.tasks}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground mb-0.5">Durasi</p>
+                    <p className="font-mono">{lastRun?.duration || "-"}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground mb-0.5">Run Terakhir</p>
+                    <p className="font-mono text-[10px]">{lastRun ? new Date(lastRun.created_at).toLocaleString("id-ID") : "-"}</p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-muted-foreground mb-0.5">Tugas</p>
-                  <p className="font-mono">{dag.tasks}</p>
+                <Separator />
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1"
+                    onClick={() => handleTrigger(dag.id)}
+                    disabled={pipelineStatus === "running"}
+                  >
+                    <PlayIcon className="size-3 mr-1" />
+                    Jalankan
+                  </Button>
+                  <Button variant="ghost" size="icon" className="size-8 shrink-0">
+                    <SquareIcon className="size-3" />
+                  </Button>
                 </div>
-                <div>
-                  <p className="text-muted-foreground mb-0.5">Durasi</p>
-                  <p className="font-mono">{dag.duration}</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground mb-0.5">Run Terakhir</p>
-                  <p className="font-mono text-[10px]">{dag.lastRun}</p>
-                </div>
-              </div>
-              <Separator />
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="flex-1"
-                  onClick={handleTrigger}
-                  disabled={pipelineStatus === "running"}
-                >
-                  <PlayIcon className="size-3 mr-1" />
-                  Jalankan
-                </Button>
-                <Button variant="ghost" size="icon" className="size-8 shrink-0">
-                  <SquareIcon className="size-3" />
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+              </CardContent>
+            </Card>
+          )
+        })}
       </motion.div>
 
       {/* Run History */}
@@ -237,7 +242,7 @@ export default function PipelinePage() {
                 <CardTitle className="text-base">Riwayat Run</CardTitle>
                 <CardDescription>Log eksekusi DAG terbaru</CardDescription>
               </div>
-              <Button variant="ghost" size="sm">
+              <Button variant="ghost" size="sm" onClick={fetchRuns}>
                 <ReloadIcon className="size-3.5 mr-1.5" />
                 Segarkan
               </Button>
@@ -245,21 +250,21 @@ export default function PipelinePage() {
           </CardHeader>
           <CardContent className="p-0">
             <div className="divide-y">
-              {runHistory.map((run, i) => (
-                <div key={i} className="flex items-center gap-4 px-6 py-3 hover:bg-muted/30 transition-colors">
-                  <StatusIcon status={run.status as PipelineStatus} />
+              {runs.map((run) => (
+                <div key={run.id} className="flex items-center gap-4 px-6 py-3 hover:bg-muted/30 transition-colors">
+                  <StatusIcon status={run.status} />
                   <div className="flex-1 min-w-0 grid grid-cols-1 sm:grid-cols-4 gap-2 sm:gap-4">
                     <div className="min-w-0">
-                      <p className="text-sm font-medium font-mono truncate">{run.dag}</p>
+                      <p className="text-sm font-medium font-mono truncate">{run.dag_id}</p>
                     </div>
                     <div className="min-w-0">
-                      <p className="text-xs text-muted-foreground font-mono truncate">{run.run}</p>
+                      <p className="text-xs text-muted-foreground font-mono truncate">{run.run_id || "-"}</p>
                     </div>
                     <div className="hidden sm:block">
-                      <p className="text-xs text-muted-foreground font-mono">{run.duration}</p>
+                      <p className="text-xs text-muted-foreground font-mono">{run.duration || "-"}</p>
                     </div>
                     <div className="hidden sm:block">
-                      <p className="text-xs text-muted-foreground font-mono">{run.tasks} tugas</p>
+                      <p className="text-xs text-muted-foreground font-mono">{run.tasks_completed}/{run.tasks_total} tugas</p>
                     </div>
                   </div>
                   <Badge
@@ -270,6 +275,11 @@ export default function PipelinePage() {
                   </Badge>
                 </div>
               ))}
+              {runs.length === 0 && !loading && (
+                <div className="px-6 py-8 text-center text-sm text-muted-foreground">
+                  Belum ada riwayat run
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>

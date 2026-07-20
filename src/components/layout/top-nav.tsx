@@ -35,6 +35,7 @@ import {
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { Separator } from "@/components/ui/separator"
 import * as React from "react"
+import { clearAuth, getCurrentUser } from "@/lib/auth"
 
 const navItems = [
   { label: "Ringkasan", href: "/home", icon: DashboardIcon },
@@ -50,8 +51,10 @@ export function TopNav() {
   const router = useRouter()
   const [open, setOpen] = React.useState(false)
   const [profileOpen, setProfileOpen] = React.useState(false)
+  const user = getCurrentUser()
 
   const handleLogout = () => {
+    clearAuth()
     router.push("/login")
   }
 
@@ -103,12 +106,12 @@ export function TopNav() {
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="relative size-8 rounded-full cursor-pointer">
               <div className="size-8 rounded-full bg-gradient-to-br from-pulse/80 to-pulse flex items-center justify-center text-xs font-bold text-background">
-                A
+                {user?.avatar_initial || "A"}
               </div>
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuLabel>Admin</DropdownMenuLabel>
+            <DropdownMenuLabel>{user?.full_name || "Admin"}</DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DialogTrigger asChild>
               <DropdownMenuItem
@@ -143,11 +146,11 @@ export function TopNav() {
           <div className="space-y-4 pt-2">
             <div className="flex items-center gap-4">
               <div className="size-14 rounded-full bg-gradient-to-br from-pulse/80 to-pulse flex items-center justify-center text-lg font-bold text-background">
-                A
+                {user?.avatar_initial || "A"}
               </div>
               <div>
-                <p className="text-sm font-semibold">Admin</p>
-                <p className="text-xs text-muted-foreground">admin@edupulse.dev</p>
+                <p className="text-sm font-semibold">{user?.full_name || "Admin"}</p>
+                <p className="text-xs text-muted-foreground">{user?.email || "admin@edupulse.dev"}</p>
               </div>
             </div>
             <Separator />
@@ -157,7 +160,7 @@ export function TopNav() {
                   <PersonIcon className="size-4 text-muted-foreground" />
                   <span className="text-sm">Peran</span>
                 </div>
-                <span className="text-sm font-medium">Administrator</span>
+                <span className="text-sm font-medium capitalize">{user?.role || "admin"}</span>
               </div>
               <div className="flex items-center justify-between py-1">
                 <div className="flex items-center gap-2">

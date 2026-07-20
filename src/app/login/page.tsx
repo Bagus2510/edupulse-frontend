@@ -6,6 +6,8 @@ import { MixIcon, PersonIcon, LockClosedIcon, EyeOpenIcon, EyeClosedIcon } from 
 import { motion, useMotionValue, useTransform, useSpring } from "motion/react"
 import * as React from "react"
 import { useRouter } from "next/navigation"
+import { setAuth } from "@/lib/auth"
+import { API_URL } from "@/lib/constants"
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -307,14 +309,34 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = React.useState(false)
   const [email, setEmail] = React.useState("")
   const [password, setPassword] = React.useState("")
+  const [error, setError] = React.useState("")
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
-    setTimeout(() => {
-      setIsLoading(false)
+    setError("")
+    try {
+      const formData = new URLSearchParams()
+      formData.append("username", email)
+      formData.append("password", password)
+      const res = await fetch(`${API_URL}/api/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: formData.toString(),
+      })
+      if (!res.ok) {
+        const data = await res.json()
+        setError(data.detail || "Login gagal")
+        return
+      }
+      const data = await res.json()
+      setAuth(data.access_token, data.refresh_token, data.user)
       router.push("/home")
-    }, 1500)
+    } catch {
+      setError("Gagal terhubung ke server")
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -356,6 +378,11 @@ export default function LoginPage() {
               </CardHeader>
               <CardContent>
                 <form onSubmit={handleSubmit} className="space-y-4">
+                  {error && (
+                    <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
+                      {error}
+                    </div>
+                  )}
                   <div className="space-y-2">
                     <label htmlFor="email" className="text-sm font-medium">
                       Surel
@@ -431,7 +458,7 @@ export default function LoginPage() {
           </motion.div>
 
           <motion.p variants={itemVariants} className="text-center text-xs text-muted-foreground/60 mt-6">
-            Kredensial demo: admin@edupulse.dev / password
+            Kredensial demo: admin@edupulse.dev / admin123
           </motion.p>
         </motion.div>
       </div>

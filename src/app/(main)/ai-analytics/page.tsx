@@ -19,6 +19,7 @@ import {
 } from "@radix-ui/react-icons"
 import { motion, AnimatePresence } from "motion/react"
 import * as React from "react"
+import { API_URL } from "@/lib/constants"
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -33,88 +34,28 @@ const itemVariants = {
   show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: "easeOut" as const } },
 }
 
-const dashboards = [
-  {
-    id: "student-performance",
-    title: "Performa Mahasiswa",
-    description: "Distribusi nilai, tingkat kelulusan, dan hasil akademik",
-    status: "active",
-    lastUpdated: "2 menit lalu",
-  },
-  {
-    id: "vle-engagement",
-    title: "Interaksi VLE",
-    description: "Pola interaksi lingkungan pembelajaran virtual",
-    status: "active",
-    lastUpdated: "5 menit lalu",
-  },
-  {
-    id: "outcome-analysis",
-    title: "Analisis Hasil",
-    description: "Korelasi antara interaksi dan kelulusan kursus",
-    status: "pending",
-    statusText: "Menunggu data",
-    lastUpdated: "Belum dihasilkan",
-  },
-]
-
-type TrendType = "naik" | "turun" | "stabil"
+interface DashboardItem {
+  id: number
+  title: string
+  description: string | null
+  superset_uuid: string | null
+  status: string
+  is_default: boolean
+  created_at: string
+  updated_at: string
+}
 
 interface DashboardInsight {
   dashboard_type: string
   summary: string
   key_findings: string[]
-  trend: TrendType
+  trend: "naik" | "turun" | "stabil"
   business_recommendation: string
   potential_issue: string | null
   confidence: number
 }
 
-const mockInsights: Record<string, DashboardInsight> = {
-  "student-performance": {
-    dashboard_type: "Akademik - Performa Mahasiswa",
-    summary: "Dashboard menunjukkan tren peningkatan rata-rata nilai mahasiswa selama 3 semester terakhir, dengan penurunan signifikan pada tingkat partisipasi VLE.",
-    key_findings: [
-      "Rata-rata nilai meningkat dari 72 ke 78 dalam 3 semester terakhir",
-      "Tingkat kelulusan tepat waktu stabil di 85%",
-      "Program Studi Teknik Informatika memiliki dropout rate tertinggi",
-      "Semester 3 menunjukkan lonjakan interaksi VLE yang belum diikuti peningkatan nilai",
-    ],
-    trend: "naik",
-    business_recommendation: "Fokuskan intervensi akademik pada program studi dengan dropout rate di atas 15%. Pertimbangkan untuk meningkatkan dukungan mentor pada semester awal.",
-    potential_issue: "Penurunan jumlah mahasiswa aktif di semester 6 dan 7 belum teridentifikasi penyebabnya",
-    confidence: 0.85,
-  },
-  "vle-engagement": {
-    dashboard_type: "Engagement - Interaksi VLE",
-    summary: "Pola interaksi VLE menunjukkan pola mingguan yang konsisten dengan puncak aktivitas di hari Selasa dan Rabu.",
-    key_findings: [
-      "Puncak aktivitas terjadi pada Selasa-Rabu (35% dari total interaksi)",
-      "Interaksi weekend sangat rendah (< 5% dari total)",
-      "Forum diskusi memiliki engagement 3x lipat dibanding resource download",
-      "Materi interaktif menunjukkan retensi belajar 20% lebih tinggi",
-    ],
-    trend: "stabil",
-    business_recommendation: "Optimalkan jadwal konten baru di hari Selasa. Tambahkan elemen interaktif untuk resource yang memiliki engagement rendah.",
-    potential_issue: "Tidak ada peningkatan signifikan dalam interaksi selama 2 bulan terakhir",
-    confidence: 0.78,
-  },
-  "outcome-analysis": {
-    dashboard_type: "Outcome - Analisis Hasil",
-    summary: "Korelasi positif kuat antara frekuensi interaksi VLE dan kelulusan kursus, namun data belum lengkap untuk semua program studi.",
-    key_findings: [
-      "Korelasi 0.72 antara frekuensi VLE dan nilai akhir",
-      "Mahasiswa dengan interaksi > 50x per bulan memiliki kemungkinan lulus 2.3x lebih tinggi",
-      "Program studi yang belum memiliki data cukup: 3 dari 8 program",
-    ],
-    trend: "naik",
-    business_recommendation: "Lengkapi data untuk 3 program studi yang belum terpantau. Gunakan threshold 50 interaksi/bulan sebagai indikator awal risiko.",
-    potential_issue: "Belum semua program studi memiliki data yang cukup untuk analisis mendalam",
-    confidence: 0.65,
-  },
-}
-
-function TrendBadge({ trend }: { trend: TrendType }) {
+function TrendBadge({ trend }: { trend: DashboardInsight["trend"] }) {
   const config = {
     naik: { label: "Naik", variant: "success" as const, icon: RocketIcon },
     turun: { label: "Turun", variant: "destructive" as const, icon: CrossCircledIcon },
@@ -221,22 +162,55 @@ function InsightPanel({ insight }: { insight: DashboardInsight }) {
 }
 
 export default function AiAnalyticsPage() {
-  const [selectedDashboard, setSelectedDashboard] = React.useState(dashboards[0])
+  const [dashboards, setDashboards] = React.useState<DashboardItem[]>([])
+  const [selectedDashboard, setSelectedDashboard] = React.useState<DashboardItem | null>(null)
   const [isAnalyzing, setIsAnalyzing] = React.useState(false)
   const [insight, setInsight] = React.useState<DashboardInsight | null>(null)
-  const [analyzedId, setAnalyzedId] = React.useState<string | null>(null)
+  const [analyzedId, setAnalyzedId] = React.useState<number | null>(null)
+  const [loading, setLoading] = React.useState(true)
 
-  const handleAnalyze = () => {
+  React.useEffect(() => {
+    fetchDashboards()
+  }, [])
+
+  const fetchDashboards = async () => {
+    try {
+      const res = await fetch(`${API_URL}/api/dashboards`)
+      const data = await res.json()
+      setDashboards(data)
+      if (data.length > 0) {
+        setSelectedDashboard(data[0])
+      }
+    } catch {
+      // ignore
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleAnalyze = async () => {
+    if (!selectedDashboard) return
     setIsAnalyzing(true)
     setInsight(null)
-    setTimeout(() => {
-      const result = mockInsights[selectedDashboard.id]
-      if (result) {
-        setInsight(result)
+    try {
+      const res = await fetch(`${API_URL}/api/ai/analyze`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          dashboard_title: selectedDashboard.title,
+          dashboard_description: selectedDashboard.description || "",
+        }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setInsight(data)
         setAnalyzedId(selectedDashboard.id)
       }
+    } catch {
+      // ignore
+    } finally {
       setIsAnalyzing(false)
-    }, 2000)
+    }
   }
 
   return (
@@ -273,7 +247,7 @@ export default function AiAnalyticsPage() {
           <Card
             key={dashboard.id}
             className={`cursor-pointer transition-all duration-200 ${
-              selectedDashboard.id === dashboard.id
+              selectedDashboard?.id === dashboard.id
                 ? "border-pulse/50 bg-pulse/5"
                 : "hover:border-muted-foreground/20"
             }`}
@@ -292,13 +266,13 @@ export default function AiAnalyticsPage() {
                   variant={dashboard.status === "active" ? "success" : "secondary"}
                   className="shrink-0"
                 >
-                  {dashboard.statusText || dashboard.status}
+                  {dashboard.status}
                 </Badge>
               </div>
             </CardHeader>
             <CardContent>
               <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
-                Diperbarui {dashboard.lastUpdated}
+                Diperbarui {new Date(dashboard.updated_at).toLocaleDateString("id-ID")}
               </p>
             </CardContent>
           </Card>
@@ -317,26 +291,23 @@ export default function AiAnalyticsPage() {
                     <BarChartIcon className="size-4 text-pulse" />
                   </div>
                   <div>
-                    <CardTitle className="text-sm">{selectedDashboard.title}</CardTitle>
+                    <CardTitle className="text-sm">{selectedDashboard?.title || "Pilih Dashboard"}</CardTitle>
                     <CardDescription className="text-xs">Preview dashboard</CardDescription>
                   </div>
                 </div>
                 <Badge variant="outline" className="font-mono text-[10px]">
-                  {selectedDashboard.id}
+                  {selectedDashboard?.id}
                 </Badge>
               </div>
             </CardHeader>
             <CardContent className="p-0">
               <div className="relative min-h-[400px] bg-gradient-to-br from-card via-card to-muted/20 flex items-center justify-center">
-                {/* Grid pattern background */}
                 <div className="absolute inset-0 opacity-[0.03]"
                   style={{
                     backgroundImage: `linear-gradient(var(--foreground) 1px, transparent 1px), linear-gradient(90deg, var(--foreground) 1px, transparent 1px)`,
                     backgroundSize: '40px 40px',
                   }}
                 />
-
-                {/* Placeholder content */}
                 <div className="relative z-10 flex flex-col items-center gap-4 p-8 text-center">
                   <div className="size-14 rounded-2xl bg-pulse/10 border border-pulse/20 flex items-center justify-center">
                     <BarChartIcon className="size-7 text-pulse" />
@@ -373,7 +344,7 @@ export default function AiAnalyticsPage() {
                     </CardDescription>
                   </div>
                 </div>
-                {insight && analyzedId === selectedDashboard.id && (
+                {insight && analyzedId === selectedDashboard?.id && (
                   <Badge variant="success" className="text-[10px]">Selesai</Badge>
                 )}
               </div>
@@ -397,7 +368,7 @@ export default function AiAnalyticsPage() {
                       <p className="text-xs text-muted-foreground">AI sedang memproses visualisasi</p>
                     </div>
                   </motion.div>
-                ) : insight && analyzedId === selectedDashboard.id ? (
+                ) : insight && analyzedId === selectedDashboard?.id ? (
                   <motion.div
                     key="result"
                     initial={{ opacity: 0 }}
@@ -437,7 +408,7 @@ export default function AiAnalyticsPage() {
           size="lg"
           className="bg-pulse hover:bg-pulse/90 text-background gap-2 px-8"
           onClick={handleAnalyze}
-          disabled={isAnalyzing || selectedDashboard.status === "pending"}
+          disabled={isAnalyzing || !selectedDashboard || selectedDashboard.status === "pending"}
         >
           {isAnalyzing ? (
             <>

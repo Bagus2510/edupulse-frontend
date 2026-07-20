@@ -17,44 +17,14 @@ import {
 } from "@radix-ui/react-icons"
 import { motion } from "motion/react"
 import Link from "next/link"
+import { HOME_STATS, HOME_ACTIVITIES, ARCHITECTURE_STEPS, QUICK_ACCESS } from "@/lib/mock-data"
 
-const stats = [
-  {
-    label: "Total Mahasiswa",
-    value: "42,354",
-    change: "+12.5%",
-    trend: "up" as const,
-    icon: PersonIcon,
-  },
-  {
-    label: "Kursus Aktif",
-    value: "22",
-    change: "+2",
-    trend: "up" as const,
-    icon: DashboardIcon,
-  },
-  {
-    label: "Rata-rata Nilai",
-    value: "71.3",
-    change: "-2.1%",
-    trend: "down" as const,
-    icon: BarChartIcon,
-  },
-  {
-    label: "Tingkat Kelulusan",
-    value: "68.7%",
-    change: "+5.4%",
-    trend: "up" as const,
-    icon: LapTimerIcon,
-  },
-]
-
-const recentActivity = [
-  { time: "2 menit lalu", action: "Pipeline selesai", status: "success" },
-  { time: "1 jam lalu", action: "Dashboard diperbarui", status: "success" },
-  { time: "3 jam lalu", action: "Transformasi data dimulai", status: "running" },
-  { time: "1 hari lalu", action: "ETL pipeline dijalankan", status: "success" },
-]
+const iconMap = { PersonIcon, DashboardIcon, BarChartIcon, LapTimerIcon } as const
+const colorMap = {
+  "pulse": { bg: "bg-pulse/10", hover: "group-hover:bg-pulse/20", text: "text-pulse", icon: "text-pulse" },
+  "amber-500": { bg: "bg-amber-500/10", hover: "group-hover:bg-amber-500/20", text: "text-amber-500", icon: "text-amber-500" },
+  "emerald-500": { bg: "bg-emerald-500/10", hover: "group-hover:bg-emerald-500/20", text: "text-emerald-500", icon: "text-emerald-500" },
+} as const
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -100,38 +70,41 @@ export default function HomePage() {
         variants={itemVariants}
         className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4"
       >
-        {stats.map((stat) => (
-          <Card key={stat.label} className="relative overflow-hidden group">
-            <CardHeader className="pb-2">
-              <div className="flex items-center justify-between">
-                <CardDescription className="text-[11px] uppercase tracking-widest">
-                  {stat.label}
-                </CardDescription>
-                <stat.icon className="size-4 text-muted-foreground" />
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-end justify-between">
-                <span className="text-3xl font-bold tracking-tighter font-mono">
-                  {stat.value}
-                </span>
-                <div
-                  className={`flex items-center gap-1 text-xs font-medium ${
-                    stat.trend === "up" ? "text-emerald-500" : "text-red-400"
-                  }`}
-                >
-                  {stat.trend === "up" ? (
-                    <ArrowUpIcon className="size-3" />
-                  ) : (
-                    <ArrowDownIcon className="size-3" />
-                  )}
-                  {stat.change}
+        {HOME_STATS.map((stat) => {
+          const Icon = iconMap[stat.icon as keyof typeof iconMap]
+          return (
+            <Card key={stat.label} className="relative overflow-hidden group">
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between">
+                  <CardDescription className="text-[11px] uppercase tracking-widest">
+                    {stat.label}
+                  </CardDescription>
+                  {Icon && <Icon className="size-4 text-muted-foreground" />}
                 </div>
-              </div>
-              <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-pulse/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-            </CardContent>
-          </Card>
-        ))}
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-end justify-between">
+                  <span className="text-3xl font-bold tracking-tighter font-mono">
+                    {stat.value}
+                  </span>
+                  <div
+                    className={`flex items-center gap-1 text-xs font-medium ${
+                      stat.trend === "up" ? "text-emerald-500" : "text-red-400"
+                    }`}
+                  >
+                    {stat.trend === "up" ? (
+                      <ArrowUpIcon className="size-3" />
+                    ) : (
+                      <ArrowDownIcon className="size-3" />
+                    )}
+                    {stat.change}
+                  </div>
+                </div>
+                <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-pulse/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+              </CardContent>
+            </Card>
+          )
+        })}
       </motion.div>
 
       {/* Main Content Grid */}
@@ -145,16 +118,8 @@ export default function HomePage() {
             </CardHeader>
             <CardContent className="overflow-hidden">
               <div className="relative">
-                {/* Pipeline visualization - horizontal scroll on mobile */}
                 <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
-                  {[
-                    { label: "Data CSV", sub: "Dataset OULAD" },
-                    { label: "Lapisan Mentah", sub: "PostgreSQL" },
-                    { label: "DAG Airflow", sub: "Pipeline ETL" },
-                    { label: "Data Mart", sub: "Teragregasi" },
-                    { label: "Superset", sub: "Dashboard" },
-                    { label: "Aplikasi Web", sub: "Next.js" },
-                  ].map((step, i) => (
+                  {ARCHITECTURE_STEPS.map((step, i) => (
                     <div key={step.label} className="flex items-center gap-1.5 shrink-0">
                       <div className="flex items-center gap-2 p-2.5 rounded-lg border bg-card/50 hover:border-pulse/30 transition-colors min-w-0">
                         <div className="size-7 rounded-md bg-pulse/10 flex items-center justify-center shrink-0">
@@ -167,7 +132,7 @@ export default function HomePage() {
                           <span className="text-[10px] text-muted-foreground truncate">{step.sub}</span>
                         </div>
                       </div>
-                      {i < 5 && (
+                      {i < ARCHITECTURE_STEPS.length - 1 && (
                         <div className="text-muted-foreground/40 shrink-0">
                           <svg width="16" height="6" viewBox="0 0 16 6" fill="none">
                             <path
@@ -195,7 +160,7 @@ export default function HomePage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {recentActivity.map((activity, i) => (
+                {HOME_ACTIVITIES.map((activity, i) => (
                   <div key={i} className="flex items-start gap-3">
                     <div className="mt-1 relative">
                       <div
@@ -228,59 +193,31 @@ export default function HomePage() {
       <motion.div variants={itemVariants}>
         <Separator className="my-2" />
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
-          <Link href="/dashboard" className="block">
-            <Card className="group cursor-pointer hover:border-pulse/30 transition-all duration-300">
-              <CardHeader>
-                <div className="flex items-center gap-3">
-                  <div className="size-10 rounded-lg bg-pulse/10 flex items-center justify-center group-hover:bg-pulse/20 transition-colors">
-                    <BarChartIcon className="size-5 text-pulse" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-sm">Performa Mahasiswa</CardTitle>
-                    <CardDescription className="text-xs">
-                      Distribusi nilai & tren
-                    </CardDescription>
-                  </div>
-                </div>
-              </CardHeader>
-            </Card>
-          </Link>
-
-          <Link href="/dashboard" className="block">
-            <Card className="group cursor-pointer hover:border-pulse/30 transition-all duration-300">
-              <CardHeader>
-                <div className="flex items-center gap-3">
-                  <div className="size-10 rounded-lg bg-amber-500/10 flex items-center justify-center group-hover:bg-amber-500/20 transition-colors">
-                    <RocketIcon className="size-5 text-amber-500" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-sm">Interaksi VLE</CardTitle>
-                    <CardDescription className="text-xs">
-                      Interaksi pembelajaran virtual
-                    </CardDescription>
-                  </div>
-                </div>
-              </CardHeader>
-            </Card>
-          </Link>
-
-          <Link href="/dashboard" className="block">
-            <Card className="group cursor-pointer hover:border-pulse/30 transition-all duration-300">
-              <CardHeader>
-                <div className="flex items-center gap-3">
-                  <div className="size-10 rounded-lg bg-emerald-500/10 flex items-center justify-center group-hover:bg-emerald-500/20 transition-colors">
-                    <LapTimerIcon className="size-5 text-emerald-500" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-sm">Analisis Hasil</CardTitle>
-                    <CardDescription className="text-xs">
-                      Korelasi lulus/gagal
-                    </CardDescription>
-                  </div>
-                </div>
-              </CardHeader>
-            </Card>
-          </Link>
+          {QUICK_ACCESS.map((item) => {
+            const c = colorMap[item.color as keyof typeof colorMap]
+            const quickIcons = [BarChartIcon, RocketIcon, LapTimerIcon]
+            const qi = QUICK_ACCESS.indexOf(item)
+            const QIcon = quickIcons[qi]
+            return (
+              <Link key={item.title} href={item.href} className="block">
+                <Card className="group cursor-pointer hover:border-pulse/30 transition-all duration-300">
+                  <CardHeader>
+                    <div className="flex items-center gap-3">
+                      <div className={`size-10 rounded-lg ${c.bg} flex items-center justify-center ${c.hover} transition-colors`}>
+                        <QIcon className={`size-5 ${c.icon}`} />
+                      </div>
+                      <div>
+                        <CardTitle className="text-sm">{item.title}</CardTitle>
+                        <CardDescription className="text-xs">
+                          {item.desc}
+                        </CardDescription>
+                      </div>
+                    </div>
+                  </CardHeader>
+                </Card>
+              </Link>
+            )
+          })}
         </div>
       </motion.div>
     </motion.div>

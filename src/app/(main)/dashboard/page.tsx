@@ -30,6 +30,7 @@ import {
 } from "@radix-ui/react-icons"
 import { motion } from "motion/react"
 import * as React from "react"
+import { API_URL } from "@/lib/constants"
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -44,36 +45,16 @@ const itemVariants = {
   show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: "easeOut" as const } },
 }
 
-const defaultDashboards = [
-  {
-    id: "student-performance",
-    title: "Performa Mahasiswa",
-    description: "Distribusi nilai, tingkat kelulusan, dan hasil akademik",
-    supersetUuid: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-    status: "active" as const,
-    lastUpdated: "2 menit lalu",
-    isDefault: true,
-  },
-  {
-    id: "vle-engagement",
-    title: "Interaksi VLE",
-    description: "Pola interaksi lingkungan pembelajaran virtual",
-    supersetUuid: "b2c3d4e5-f6a7-8901-bcde-f12345678901",
-    status: "active" as const,
-    lastUpdated: "5 menit lalu",
-    isDefault: true,
-  },
-  {
-    id: "outcome-analysis",
-    title: "Analisis Hasil",
-    description: "Korelasi antara interaksi dan kelulusan kursus",
-    supersetUuid: "c3d4e5f6-a7b8-9012-cdef-123456789012",
-    status: "pending" as const,
-    statusText: "Menunggu data",
-    lastUpdated: "Belum dihasilkan",
-    isDefault: true,
-  },
-]
+interface DashboardItem {
+  id: number
+  title: string
+  description: string | null
+  superset_uuid: string | null
+  status: string
+  is_default: boolean
+  created_at: string
+  updated_at: string
+}
 
 function MiniBarChart() {
   const bars = [40, 65, 45, 80, 55, 70, 35, 90, 60, 75, 50, 85]
@@ -136,48 +117,71 @@ function MiniDonut() {
 }
 
 export default function DashboardPage() {
-  const [dashboards, setDashboards] = React.useState(defaultDashboards)
-  const [selectedDashboard, setSelectedDashboard] = React.useState(defaultDashboards[0])
+  const [dashboards, setDashboards] = React.useState<DashboardItem[]>([])
+  const [selectedDashboard, setSelectedDashboard] = React.useState<DashboardItem | null>(null)
   const [dialogOpen, setDialogOpen] = React.useState(false)
   const [detailOpen, setDetailOpen] = React.useState(false)
-  const [detailDashboard, setDetailDashboard] = React.useState<typeof defaultDashboards[0] | null>(null)
+  const [detailDashboard, setDetailDashboard] = React.useState<DashboardItem | null>(null)
   const [newTitle, setNewTitle] = React.useState("")
   const [newDescription, setNewDescription] = React.useState("")
   const [newUuid, setNewUuid] = React.useState("")
+  const [loading, setLoading] = React.useState(true)
 
-  const handleDetail = (e: React.MouseEvent, dashboard: typeof defaultDashboards[0]) => {
+  React.useEffect(() => {
+    fetchDashboards()
+  }, [])
+
+  const fetchDashboards = async () => {
+    try {
+      const res = await fetch(`${API_URL}/api/dashboards`)
+      const data = await res.json()
+      setDashboards(data)
+      if (data.length > 0 && !selectedDashboard) {
+        setSelectedDashboard(data[0])
+      }
+    } catch {
+      // ignore
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleDetail = (e: React.MouseEvent, dashboard: DashboardItem) => {
     e.stopPropagation()
     setDetailDashboard(dashboard)
     setDetailOpen(true)
   }
 
-  const handleAddDashboard = () => {
+  const handleAddDashboard = async () => {
     if (!newTitle.trim() || !newDescription.trim() || !newUuid.trim()) return
-    const newDashboard = {
-      id: `custom-${Date.now()}`,
-      title: newTitle.trim(),
-      description: newDescription.trim(),
-      supersetUuid: newUuid.trim(),
-      status: "active" as const,
-      lastUpdated: "Baru saja",
-      isDefault: false,
+    try {
+      await fetch(`${API_URL}/api/dashboards`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: newTitle.trim(),
+          description: newDescription.trim(),
+          superset_uuid: newUuid.trim(),
+          status: "pending",
+        }),
+      })
+      await fetchDashboards()
+      setNewTitle("")
+      setNewDescription("")
+      setNewUuid("")
+      setDialogOpen(false)
+    } catch {
+      // ignore
     }
-    setDashboards((prev) => [...prev, newDashboard])
-    setSelectedDashboard(newDashboard)
-    setNewTitle("")
-    setNewDescription("")
-    setNewUuid("")
-    setDialogOpen(false)
   }
 
-  const handleDeleteDashboard = (e: React.MouseEvent, id: string) => {
+  const handleDeleteDashboard = async (e: React.MouseEvent, id: number) => {
     e.stopPropagation()
-    setDashboards((prev) => prev.filter((d) => d.id !== id))
-    if (selectedDashboard.id === id) {
-      const remaining = dashboards.filter((d) => d.id !== id)
-      if (remaining.length > 0) {
-        setSelectedDashboard(remaining[0])
-      }
+    try {
+      await fetch(`${API_URL}/api/dashboards/${id}`, { method: "DELETE" })
+      await fetchDashboards()
+    } catch {
+      // ignore
     }
   }
 
@@ -280,7 +284,7 @@ export default function DashboardPage() {
           <Card
             key={dashboard.id}
             className={`cursor-pointer transition-all duration-200 group ${
-              selectedDashboard.id === dashboard.id
+              selectedDashboard?.id === dashboard.id
                 ? "border-pulse/50 bg-pulse/5"
                 : "hover:border-muted-foreground/20"
             }`}
@@ -296,9 +300,9 @@ export default function DashboardPage() {
                   <Badge
                     variant={dashboard.status === "active" ? "success" : "secondary"}
                   >
-                    {dashboard.statusText || dashboard.status}
+                    {dashboard.status}
                   </Badge>
-                  {!dashboard.isDefault && (
+                  {!dashboard.is_default && (
                     <Button
                       variant="ghost"
                       size="icon"
@@ -313,10 +317,10 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent className="space-y-2">
               <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
-                Diperbarui {dashboard.lastUpdated}
+                Diperbarui {new Date(dashboard.updated_at).toLocaleDateString("id-ID")}
               </p>
-              <p className="text-[10px] text-muted-foreground font-mono truncate" title={dashboard.supersetUuid}>
-                UUID: {dashboard.supersetUuid}
+              <p className="text-[10px] text-muted-foreground font-mono truncate" title={dashboard.superset_uuid || ""}>
+                UUID: {dashboard.superset_uuid}
               </p>
               <Button
                 variant="outline"
@@ -342,14 +346,14 @@ export default function DashboardPage() {
                   <BarChartIcon className="size-4 text-pulse" />
                 </div>
                 <div>
-                  <CardTitle className="text-sm">{selectedDashboard.title}</CardTitle>
+                  <CardTitle className="text-sm">{selectedDashboard?.title || "Pilih Dashboard"}</CardTitle>
                   <CardDescription className="text-xs">
                     Disematkan melalui Superset Embedded SDK
                   </CardDescription>
                 </div>
               </div>
               <Badge variant="outline" className="font-mono text-[10px]">
-                UUID: {selectedDashboard.supersetUuid}
+                UUID: {selectedDashboard?.superset_uuid}
               </Badge>
             </div>
           </CardHeader>
@@ -436,20 +440,20 @@ export default function DashboardPage() {
                 <div className="flex items-center justify-between py-2 border-b border-border/40">
                   <span className="text-sm text-muted-foreground">Status</span>
                   <Badge variant={detailDashboard.status === "active" ? "success" : "secondary"}>
-                    {detailDashboard.statusText || detailDashboard.status}
+                    {detailDashboard.status}
                   </Badge>
                 </div>
                 <div className="flex items-center justify-between py-2 border-b border-border/40">
                   <span className="text-sm text-muted-foreground">Terakhir diperbarui</span>
-                  <span className="text-sm font-medium">{detailDashboard.lastUpdated}</span>
+                  <span className="text-sm font-medium">{new Date(detailDashboard.updated_at).toLocaleDateString("id-ID")}</span>
                 </div>
                 <div className="flex items-center justify-between py-2 border-b border-border/40">
                   <span className="text-sm text-muted-foreground">Superset UUID</span>
-                  <span className="text-xs font-mono bg-muted px-2 py-1 rounded">{detailDashboard.supersetUuid}</span>
+                  <span className="text-xs font-mono bg-muted px-2 py-1 rounded">{detailDashboard.superset_uuid}</span>
                 </div>
                 <div className="flex items-center justify-between py-2 border-b border-border/40">
                   <span className="text-sm text-muted-foreground">Tipe</span>
-                  <Badge variant="outline">{detailDashboard.isDefault ? "Default" : "Custom"}</Badge>
+                  <Badge variant="outline">{detailDashboard.is_default ? "Default" : "Custom"}</Badge>
                 </div>
                 <div className="flex items-center justify-between py-2">
                   <span className="text-sm text-muted-foreground">Endpoint Embed</span>
