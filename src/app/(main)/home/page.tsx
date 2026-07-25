@@ -17,7 +17,8 @@ import {
 } from "@radix-ui/react-icons"
 import { motion } from "motion/react"
 import Link from "next/link"
-import { HOME_STATS, HOME_ACTIVITIES, ARCHITECTURE_STEPS, QUICK_ACCESS } from "@/lib/mock-data"
+import * as React from "react"
+import { API_URL } from "@/lib/constants"
 
 const iconMap = { PersonIcon, DashboardIcon, BarChartIcon, LapTimerIcon } as const
 const colorMap = {
@@ -41,7 +42,86 @@ const itemVariants = {
   show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: "easeOut" as const } },
 }
 
+interface Stat {
+  label: string
+  value: string
+  icon: string
+}
+
+interface Activity {
+  action: string
+  status: string
+  created_at: string
+}
+
+interface HomeData {
+  stats: Record<string, { value: number | string; label: string }>
+  activities: Activity[]
+}
+
+const ARCHITECTURE_STEPS = [
+  { label: "Data CSV", sub: "Dataset OULAD" },
+  { label: "Lapisan Mentah", sub: "PostgreSQL" },
+  { label: "DAG Airflow", sub: "Pipeline ETL" },
+  { label: "Data Mart", sub: "Teragregasi" },
+  { label: "Superset", sub: "Dashboard" },
+  { label: "Aplikasi Web", sub: "Next.js" },
+]
+
+const QUICK_ACCESS = [
+  { title: "Performa Mahasiswa", desc: "Distribusi nilai & tren", href: "/dashboard", color: "pulse" },
+  { title: "Pipeline ETL", desc: "Kelola pipeline transformasi", href: "/pipeline", color: "amber-500" },
+  { title: "Analisis AI", desc: "Insight berbasis Gemini", href: "/ai-analytics", color: "emerald-500" },
+]
+
+function formatTimeAgo(dateStr: string): string {
+  const now = new Date()
+  const date = new Date(dateStr)
+  const diffMs = now.getTime() - date.getTime()
+  const diffMin = Math.floor(diffMs / 60000)
+  if (diffMin < 1) return "Baru saja"
+  if (diffMin < 60) return `${diffMin} menit lalu`
+  const diffHour = Math.floor(diffMin / 60)
+  if (diffHour < 24) return `${diffHour} jam lalu`
+  const diffDay = Math.floor(diffHour / 24)
+  return `${diffDay} hari lalu`
+}
+
 export default function HomePage() {
+  const [data, setData] = React.useState<HomeData | null>(null)
+  const [loading, setLoading] = React.useState(true)
+
+  React.useEffect(() => {
+    fetchData()
+  }, [])
+
+  const fetchData = async () => {
+    try {
+      const res = await fetch(`${API_URL}/api/home/summary`)
+      const json = await res.json()
+      setData(json)
+    } catch {
+      // ignore
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const statIcons: Record<string, string> = {
+    pipelines: "DashboardIcon",
+    active: "LapTimerIcon",
+    dashboards: "BarChartIcon",
+    success_rate: "PersonIcon",
+  }
+
+  const stats: Stat[] = data
+    ? Object.entries(data.stats).map(([key, val]) => ({
+        label: val.label,
+        value: String(val.value),
+        icon: statIcons[key] || "DashboardIcon",
+      }))
+    : []
+
   return (
     <PageSkeletonWrapper skeleton={<HomeSkeleton />}>
     <motion.div
@@ -70,7 +150,7 @@ export default function HomePage() {
         variants={itemVariants}
         className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4"
       >
-        {HOME_STATS.map((stat) => {
+        {stats.map((stat) => {
           const Icon = iconMap[stat.icon as keyof typeof iconMap]
           return (
             <Card key={stat.label} className="relative overflow-hidden group">
@@ -87,18 +167,6 @@ export default function HomePage() {
                   <span className="text-3xl font-bold tracking-tighter font-mono">
                     {stat.value}
                   </span>
-                  <div
-                    className={`flex items-center gap-1 text-xs font-medium ${
-                      stat.trend === "up" ? "text-emerald-500" : "text-red-400"
-                    }`}
-                  >
-                    {stat.trend === "up" ? (
-                      <ArrowUpIcon className="size-3" />
-                    ) : (
-                      <ArrowDownIcon className="size-3" />
-                    )}
-                    {stat.change}
-                  </div>
                 </div>
                 <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-pulse/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
               </CardContent>
@@ -156,11 +224,11 @@ export default function HomePage() {
           <Card className="h-full">
             <CardHeader>
               <CardTitle className="text-base">Aktivitas Terkini</CardTitle>
-              <CardDescription>Run pipeline terbaru</CardDescription>
+              <CardDescription>Log aktivitas terbaru</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {HOME_ACTIVITIES.map((activity, i) => (
+                {(data?.activities || []).map((activity, i) => (
                   <div key={i} className="flex items-start gap-3">
                     <div className="mt-1 relative">
                       <div
@@ -173,7 +241,7 @@ export default function HomePage() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium truncate">{activity.action}</p>
-                      <p className="text-xs text-muted-foreground">{activity.time}</p>
+                      <p className="text-xs text-muted-foreground">{formatTimeAgo(activity.created_at)}</p>
                     </div>
                     <Badge
                       variant={activity.status === "success" ? "success" : "warning"}
@@ -183,6 +251,9 @@ export default function HomePage() {
                     </Badge>
                   </div>
                 ))}
+                {(!data?.activities || data.activities.length === 0) && (
+                  <p className="text-xs text-muted-foreground text-center py-4">Belum ada aktivitas</p>
+                )}
               </div>
             </CardContent>
           </Card>

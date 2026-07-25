@@ -166,3 +166,14 @@
     background-size: 256px 256px;
   }
 }
+
+/* Superset Embedded Dashboard */
+superset-dashboard {
+  display: block !important;
+  width: 100% !important;
+}
+superset-dashboard iframe {
+  width: 100% !important;
+  min-height: 600px !important;
+  border: none !important;
+}

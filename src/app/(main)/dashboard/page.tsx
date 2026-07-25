@@ -26,10 +26,15 @@ import {
   MixIcon,
   PlusIcon,
   TrashIcon,
+  Pencil1Icon,
+  CrossCircledIcon,
   InfoCircledIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
 } from "@radix-ui/react-icons"
 import { motion } from "motion/react"
 import * as React from "react"
+import { embedDashboard } from "@superset-ui/embedded-sdk"
 import { API_URL } from "@/lib/constants"
 
 const containerVariants = {
@@ -116,6 +121,114 @@ function MiniDonut() {
   )
 }
 
+function EmbeddedDashboard({ dashboardUuid, title }: { dashboardUuid: string; title: string }) {
+  const containerRef = React.useRef<HTMLDivElement>(null)
+  const [loading, setLoading] = React.useState(true)
+  const [error, setError] = React.useState<string | null>(null)
+
+  React.useEffect(() => {
+    if (!containerRef.current || !dashboardUuid) return
+
+    let cancelled = false
+    let embedded: Awaited<ReturnType<typeof embedDashboard>> | null = null
+
+    const embed = async () => {
+      setLoading(true)
+      setError(null)
+      try {
+        embedded = await embedDashboard({
+          id: dashboardUuid,
+          supersetDomain: "http://localhost:8088",
+          mountPoint: containerRef.current!,
+          fetchGuestToken: async () => {
+            const res = await fetch(`${API_URL}/api/superset/guest-token`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ dashboard_uuid: dashboardUuid }),
+            })
+            if (!res.ok) throw new Error("Gagal mengambil guest token")
+            const data = await res.json()
+            return data.guest_token
+          },
+          dashboardUiConfig: {
+            hideTitle: true,
+            hideTab: true,
+          },
+        })
+        if (!cancelled) setLoading(false)
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "Gagal memuat dashboard")
+          setLoading(false)
+        }
+      }
+    }
+
+    embed()
+    return () => {
+      cancelled = true
+      embedded?.unmount()
+    }
+  }, [dashboardUuid])
+
+  return (
+    <div className="relative w-full">
+      {loading && (
+        <div className="w-full">
+          <div className="border border-border/40 rounded-lg bg-card">
+            <div className="flex items-center justify-between border-b border-border/40 px-4 py-3">
+              <div className="flex items-center gap-3">
+                <div className="size-8 rounded-md bg-muted animate-pulse" />
+                <div className="space-y-1.5">
+                  <div className="h-3.5 w-32 bg-muted rounded animate-pulse" />
+                  <div className="h-2.5 w-40 bg-muted rounded animate-pulse" />
+                </div>
+              </div>
+              <div className="h-4 w-28 bg-muted rounded animate-pulse" />
+            </div>
+            <div className="min-h-[500px] flex items-center justify-center p-8">
+              <div className="flex flex-col items-center gap-4">
+                <div className="size-16 rounded-2xl bg-muted animate-pulse" />
+                <div className="space-y-2 text-center">
+                  <div className="h-4 w-48 bg-muted rounded animate-pulse mx-auto" />
+                  <div className="h-3 w-64 bg-muted rounded animate-pulse mx-auto" />
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="size-2 rounded-full bg-muted animate-pulse" />
+                  <div className="h-2.5 w-36 bg-muted rounded animate-pulse" />
+                </div>
+                <div className="grid grid-cols-3 gap-3 mt-2">
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <div key={i} className="p-3 rounded-lg border border-border/30 text-center space-y-2">
+                      <div className="h-16 w-full bg-muted rounded animate-pulse" />
+                      <div className="h-2 w-20 bg-muted rounded animate-pulse mx-auto" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {error && (
+        <div className="absolute inset-0 z-10 flex items-center justify-center bg-card min-h-[500px]">
+          <div className="flex flex-col items-center gap-3 text-center max-w-sm">
+            <div className="size-10 rounded-full bg-destructive/10 flex items-center justify-center">
+              <CrossCircledIcon className="size-5 text-destructive" />
+            </div>
+            <p className="text-sm font-medium">Gagal memuat dashboard</p>
+            <p className="text-xs text-muted-foreground">{error}</p>
+          </div>
+        </div>
+      )}
+      <div
+        ref={containerRef}
+        className="w-full [&_iframe]:w-full [&_iframe]:min-h-[600px] [&_iframe]:border-0"
+      />
+    </div>
+  )
+}
+
 export default function DashboardPage() {
   const [dashboards, setDashboards] = React.useState<DashboardItem[]>([])
   const [selectedDashboard, setSelectedDashboard] = React.useState<DashboardItem | null>(null)
@@ -126,6 +239,16 @@ export default function DashboardPage() {
   const [newDescription, setNewDescription] = React.useState("")
   const [newUuid, setNewUuid] = React.useState("")
   const [loading, setLoading] = React.useState(true)
+  const [deleteTarget, setDeleteTarget] = React.useState<DashboardItem | null>(null)
+  const [deleting, setDeleting] = React.useState(false)
+  const [editTarget, setEditTarget] = React.useState<DashboardItem | null>(null)
+  const [editTitle, setEditTitle] = React.useState("")
+  const [editDescription, setEditDescription] = React.useState("")
+  const [editUuid, setEditUuid] = React.useState("")
+  const [editStatus, setEditStatus] = React.useState("active")
+  const [saving, setSaving] = React.useState(false)
+  const [currentPage, setCurrentPage] = React.useState(1)
+  const itemsPerPage = 6
 
   React.useEffect(() => {
     fetchDashboards()
@@ -175,13 +298,57 @@ export default function DashboardPage() {
     }
   }
 
-  const handleDeleteDashboard = async (e: React.MouseEvent, id: number) => {
+  const handleDeleteDashboard = async (e: React.MouseEvent, dashboard: DashboardItem) => {
     e.stopPropagation()
+    setDeleteTarget(dashboard)
+  }
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return
+    setDeleting(true)
     try {
-      await fetch(`${API_URL}/api/dashboards/${id}`, { method: "DELETE" })
+      await fetch(`${API_URL}/api/dashboards/${deleteTarget.id}`, { method: "DELETE" })
+      if (selectedDashboard?.id === deleteTarget.id) {
+        setSelectedDashboard(null)
+      }
+      setDeleteTarget(null)
       await fetchDashboards()
     } catch {
       // ignore
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  const handleEditDashboard = async (e: React.MouseEvent, dashboard: DashboardItem) => {
+    e.stopPropagation()
+    setEditTarget(dashboard)
+    setEditTitle(dashboard.title)
+    setEditDescription(dashboard.description || "")
+    setEditUuid(dashboard.superset_uuid || "")
+    setEditStatus(dashboard.status)
+  }
+
+  const confirmEdit = async () => {
+    if (!editTarget || !editTitle.trim()) return
+    setSaving(true)
+    try {
+      await fetch(`${API_URL}/api/dashboards/${editTarget.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: editTitle.trim(),
+          description: editDescription.trim(),
+          superset_uuid: editUuid.trim(),
+          status: editStatus,
+        }),
+      })
+      setEditTarget(null)
+      await fetchDashboards()
+    } catch {
+      // ignore
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -279,66 +446,108 @@ export default function DashboardPage() {
       </motion.div>
 
       {/* Dashboard Selector */}
-      <motion.div variants={itemVariants} className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        {dashboards.map((dashboard) => (
-          <Card
-            key={dashboard.id}
-            className={`cursor-pointer transition-all duration-200 group ${
-              selectedDashboard?.id === dashboard.id
-                ? "border-pulse/50 bg-pulse/5"
-                : "hover:border-muted-foreground/20"
-            }`}
-            onClick={() => setSelectedDashboard(dashboard)}
-          >
-            <CardHeader className="pb-3">
-              <div className="flex items-start justify-between">
-                <div className="space-y-1 min-w-0 flex-1">
-                  <CardTitle className="text-sm truncate">{dashboard.title}</CardTitle>
-                  <CardDescription className="text-xs line-clamp-2">{dashboard.description}</CardDescription>
-                </div>
-                <div className="flex items-center gap-1.5 shrink-0 ml-2">
-                  <Badge
-                    variant={dashboard.status === "active" ? "success" : "secondary"}
-                  >
-                    {dashboard.status}
-                  </Badge>
-                  {!dashboard.is_default && (
+      {(() => {
+        const totalPages = Math.ceil(dashboards.length / itemsPerPage)
+        const paginatedDashboards = dashboards.slice(
+          (currentPage - 1) * itemsPerPage,
+          currentPage * itemsPerPage
+        )
+        return (
+          <>
+            <motion.div variants={itemVariants} className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              {paginatedDashboards.map((dashboard) => (
+                <Card
+                  key={dashboard.id}
+                  className={`cursor-pointer transition-all duration-200 group ${
+                    selectedDashboard?.id === dashboard.id
+                      ? "border-pulse/50 bg-pulse/5"
+                      : "hover:border-muted-foreground/20"
+                  }`}
+                  onClick={() => setSelectedDashboard(dashboard)}
+                >
+                  <CardHeader className="pb-3">
+                    <div className="flex items-start justify-between">
+                      <div className="space-y-1 min-w-0 flex-1">
+                        <CardTitle className="text-sm truncate">{dashboard.title}</CardTitle>
+                        <CardDescription className="text-xs line-clamp-2">{dashboard.description}</CardDescription>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                        <Badge
+                          variant={dashboard.status === "active" ? "success" : "secondary"}
+                        >
+                          {dashboard.status}
+                        </Badge>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="size-6 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground"
+                          onClick={(e) => handleEditDashboard(e, dashboard)}
+                        >
+                          <Pencil1Icon className="size-3" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="size-6 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
+                          onClick={(e) => handleDeleteDashboard(e, dashboard)}
+                        >
+                          <TrashIcon className="size-3" />
+                        </Button>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-2">
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
+                      Diperbarui {new Date(dashboard.updated_at).toLocaleDateString("id-ID")}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground font-mono truncate" title={dashboard.superset_uuid || ""}>
+                      UUID: {dashboard.superset_uuid}
+                    </p>
                     <Button
-                      variant="ghost"
-                      size="icon"
-                      className="size-6 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
-                      onClick={(e) => handleDeleteDashboard(e, dashboard.id)}
+                      variant="outline"
+                      size="sm"
+                      className="w-full mt-2 h-7 text-xs gap-1.5 cursor-pointer"
+                      onClick={(e) => handleDetail(e, dashboard)}
                     >
-                      <TrashIcon className="size-3" />
+                      <InfoCircledIcon className="size-3" />
+                      Detail
                     </Button>
-                  )}
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
-                Diperbarui {new Date(dashboard.updated_at).toLocaleDateString("id-ID")}
-              </p>
-              <p className="text-[10px] text-muted-foreground font-mono truncate" title={dashboard.superset_uuid || ""}>
-                UUID: {dashboard.superset_uuid}
-              </p>
-              <Button
-                variant="outline"
-                size="sm"
-                className="w-full mt-2 h-7 text-xs gap-1.5 cursor-pointer"
-                onClick={(e) => handleDetail(e, dashboard)}
-              >
-                <InfoCircledIcon className="size-3" />
-                Detail
-              </Button>
-            </CardContent>
-          </Card>
-        ))}
-      </motion.div>
+                  </CardContent>
+                </Card>
+              ))}
+            </motion.div>
+            {totalPages > 1 && (
+              <motion.div variants={itemVariants} className="flex items-center justify-center gap-2 pt-2">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="size-8"
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                >
+                  <ChevronLeftIcon className="size-4" />
+                </Button>
+                <span className="text-xs text-muted-foreground">
+                  {currentPage} / {totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="size-8"
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                >
+                  <ChevronRightIcon className="size-4" />
+                </Button>
+              </motion.div>
+            )}
+          </>
+        )
+      })()}
 
       {/* Embedded Dashboard Area */}
       <motion.div variants={itemVariants}>
-        <Card className="overflow-hidden">
+        <Card>
           <CardHeader className="border-b bg-card/50">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -357,48 +566,27 @@ export default function DashboardPage() {
               </Badge>
             </div>
           </CardHeader>
-          <CardContent className="p-0">
-            {/* Superset Embed Placeholder */}
-            <div className="relative min-h-[500px] bg-gradient-to-br from-card via-card to-muted/20 flex items-center justify-center">
-              {/* Grid pattern background */}
-              <div className="absolute inset-0 opacity-[0.03]"
-                style={{
-                  backgroundImage: `linear-gradient(var(--foreground) 1px, transparent 1px), linear-gradient(90deg, var(--foreground) 1px, transparent 1px)`,
-                  backgroundSize: '40px 40px',
-                }}
+          <CardContent className="p-0 w-full">
+            {selectedDashboard?.superset_uuid ? (
+              <EmbeddedDashboard
+                dashboardUuid={selectedDashboard.superset_uuid}
+                title={selectedDashboard.title}
               />
-
-              {/* Content */}
-              <div className="relative z-10 flex flex-col items-center gap-6 p-8 max-w-lg text-center">
-                <div className="size-16 rounded-2xl bg-pulse/10 border border-pulse/20 flex items-center justify-center">
-                  <LightningBoltIcon className="size-8 text-pulse" />
-                </div>
-                <div className="space-y-2">
-                  <h3 className="text-lg font-semibold">Embed Dashboard Superset</h3>
-                  <p className="text-sm text-muted-foreground leading-relaxed">
-                    Area ini akan merender dashboard Apache Superset yang disematkan setelah integrasi backend selesai. Dashboard diambil melalui guest token dan ditampilkan dalam iframe.
-                  </p>
-                </div>
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <div className="size-2 rounded-full bg-amber-500 animate-pulse" />
-                  Menunggu koneksi Superset
-                </div>
-                <div className="w-full grid grid-cols-3 gap-3 mt-2">
-                  <div className="p-3 rounded-lg border bg-card/50 text-center">
-                    <MiniBarChart />
-                    <p className="text-[10px] text-muted-foreground mt-2">Distribusi Nilai</p>
+            ) : (
+              <div className="relative min-h-[500px] bg-gradient-to-br from-card via-card to-muted/20 flex items-center justify-center">
+                <div className="relative z-10 flex flex-col items-center gap-4 p-8 text-center">
+                  <div className="size-14 rounded-2xl bg-pulse/10 border border-pulse/20 flex items-center justify-center">
+                    <LightningBoltIcon className="size-7 text-pulse" />
                   </div>
-                  <div className="p-3 rounded-lg border bg-card/50 text-center">
-                    <MiniLineChart />
-                    <p className="text-[10px] text-muted-foreground mt-2">Tren Interaksi</p>
-                  </div>
-                  <div className="p-3 rounded-lg border bg-card/50 text-center flex flex-col items-center justify-center">
-                    <MiniDonut />
-                    <p className="text-[10px] text-muted-foreground mt-2">Tingkat Kelulusan</p>
+                  <div className="space-y-1.5">
+                    <h3 className="text-sm font-semibold">Pilih Dashboard</h3>
+                    <p className="text-xs text-muted-foreground max-w-sm leading-relaxed">
+                      Pilih dashboard dari daftar di atas untuk melihat visualisasi Superset.
+                    </p>
                   </div>
                 </div>
               </div>
-            </div>
+            )}
           </CardContent>
         </Card>
       </motion.div>
@@ -465,6 +653,107 @@ export default function DashboardPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setDetailOpen(false)}>
               Tutup
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null) }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Hapus Dashboard</DialogTitle>
+            <DialogDescription>
+              Apakah Anda yakin ingin menghapus <span className="font-medium text-foreground">{deleteTarget?.title}</span>? Tindakan ini tidak dapat dibatalkan.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)} disabled={deleting}>
+              Batal
+            </Button>
+            <Button variant="destructive" onClick={confirmDelete} disabled={deleting}>
+              {deleting ? (
+                <>
+                  <div className="size-3 border-2 border-background/30 border-t-background rounded-full animate-spin mr-1.5" />
+                  Menghapus...
+                </>
+              ) : (
+                <>
+                  <TrashIcon className="size-3 mr-1.5" />
+                  Hapus
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Dashboard Dialog */}
+      <Dialog open={!!editTarget} onOpenChange={(open) => { if (!open) setEditTarget(null) }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Dashboard</DialogTitle>
+            <DialogDescription>
+              Perbarui informasi dashboard <span className="font-medium text-foreground">{editTarget?.title}</span>
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="edit-title">Judul Dashboard</Label>
+              <Input
+                id="edit-title"
+                value={editTitle}
+                onChange={(e) => setEditTitle(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-desc">Deskripsi</Label>
+              <Input
+                id="edit-desc"
+                value={editDescription}
+                onChange={(e) => setEditDescription(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-uuid">Superset Dashboard UUID</Label>
+              <Input
+                id="edit-uuid"
+                value={editUuid}
+                onChange={(e) => setEditUuid(e.target.value)}
+                className="font-mono text-xs"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-status">Status</Label>
+              <select
+                id="edit-status"
+                value={editStatus}
+                onChange={(e) => setEditStatus(e.target.value)}
+                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              >
+                <option value="active">Active</option>
+                <option value="pending">Pending</option>
+                <option value="error">Error</option>
+              </select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditTarget(null)} disabled={saving}>
+              Batal
+            </Button>
+            <Button
+              className="bg-pulse hover:bg-pulse/90 text-background"
+              onClick={confirmEdit}
+              disabled={saving || !editTitle.trim()}
+            >
+              {saving ? (
+                <>
+                  <div className="size-3 border-2 border-background/30 border-t-background rounded-full animate-spin mr-1.5" />
+                  Menyimpan...
+                </>
+              ) : (
+                "Simpan"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

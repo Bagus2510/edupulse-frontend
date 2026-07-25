@@ -6,7 +6,7 @@ import { MixIcon, PersonIcon, LockClosedIcon, EyeOpenIcon, EyeClosedIcon } from 
 import { motion, useMotionValue, useTransform, useSpring } from "motion/react"
 import * as React from "react"
 import { useRouter } from "next/navigation"
-import { setAuth } from "@/lib/auth"
+import { setAuth, isAuthenticated } from "@/lib/auth"
 import { API_URL } from "@/lib/constants"
 
 const containerVariants = {
@@ -310,6 +310,12 @@ export default function LoginPage() {
   const [email, setEmail] = React.useState("")
   const [password, setPassword] = React.useState("")
   const [error, setError] = React.useState("")
+
+  React.useEffect(() => {
+    if (isAuthenticated()) {
+      router.replace("/home")
+    }
+  }, [router])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
