@@ -11,6 +11,7 @@ import { StepEditor, PipelineStep } from "@/components/pipeline/step-editor"
 import { RocketIcon, ArrowLeftIcon, ReloadIcon, FileTextIcon } from "@radix-ui/react-icons"
 import { motion } from "motion/react"
 import { API_URL } from "@/lib/constants"
+import { getAccessToken } from "@/lib/auth"
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -41,7 +42,10 @@ export default function PipelineBuilderPage() {
 
   const fetchTables = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/pipelines/tables`)
+      const token = getAccessToken()
+      const res = await fetch(`${API_URL}/api/pipelines/tables`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
       const data = await res.json()
       setTables(data)
     } catch {
@@ -90,10 +94,14 @@ export default function PipelineBuilderPage() {
 
       const url = editId ? `${API_URL}/api/pipelines/${editId}` : `${API_URL}/api/pipelines`
       const method = editId ? "PUT" : "POST"
+      const token = getAccessToken()
 
       const res = await fetch(url, {
         method,
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify(payload),
       })
 

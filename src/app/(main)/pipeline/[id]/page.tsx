@@ -20,6 +20,7 @@ import {
 } from "@radix-ui/react-icons"
 import { motion } from "motion/react"
 import { API_URL } from "@/lib/constants"
+import { getAccessToken } from "@/lib/auth"
 
 interface PipelineStep {
   id: number
@@ -103,7 +104,11 @@ export default function PipelineDetailPage() {
     setProgress(0)
     setRunStatus("running")
     try {
-      await fetch(`${API_URL}/api/pipelines/${pipelineId}/run`, { method: "POST" })
+      const token = getAccessToken()
+      await fetch(`${API_URL}/api/pipelines/${pipelineId}/run`, {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
       pollStatus()
     } catch {
       setRunning(false)

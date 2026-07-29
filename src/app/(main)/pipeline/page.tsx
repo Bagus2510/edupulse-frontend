@@ -18,6 +18,7 @@ import { motion } from "motion/react"
 import * as React from "react"
 import { useRouter } from "next/navigation"
 import { API_URL } from "@/lib/constants"
+import { getAccessToken } from "@/lib/auth"
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -97,7 +98,11 @@ export default function PipelinePage() {
   const handleRun = async (id: number) => {
     setRunningId(id)
     try {
-      await fetch(`${API_URL}/api/pipelines/${id}/run`, { method: "POST" })
+      const token = getAccessToken()
+      await fetch(`${API_URL}/api/pipelines/${id}/run`, {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
       fetchPipelines()
     } catch {
       // ignore
