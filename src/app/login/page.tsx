@@ -2,6 +2,8 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Checkbox } from "@/components/ui/checkbox"
 import { MixIcon, PersonIcon, LockClosedIcon, EyeOpenIcon, EyeClosedIcon } from "@radix-ui/react-icons"
 import { motion, useMotionValue, useTransform, useSpring } from "motion/react"
 import * as React from "react"
@@ -395,13 +397,13 @@ export default function LoginPage() {
                     </label>
                     <div className="relative">
                       <PersonIcon className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-                      <input
+                      <Input
                         id="email"
                         type="email"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         placeholder="admin@edupulse.dev"
-                        className="w-full h-10 pl-10 pr-4 rounded-lg border border-border/60 bg-background text-sm placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-pulse/30 focus:border-pulse/50 transition-colors cursor-text"
+                        className="h-10 pl-10"
                       />
                     </div>
                   </div>
@@ -412,13 +414,13 @@ export default function LoginPage() {
                     </label>
                     <div className="relative">
                       <LockClosedIcon className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-                      <input
+                      <Input
                         id="password"
                         type={showPassword ? "text" : "password"}
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         placeholder="Masukkan kata sandi Anda"
-                        className="w-full h-10 pl-10 pr-10 rounded-lg border border-border/60 bg-background text-sm placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-pulse/30 focus:border-pulse/50 transition-colors cursor-text"
+                        className="h-10 pl-10 pr-10"
                       />
                       <button
                         type="button"
@@ -435,7 +437,7 @@ export default function LoginPage() {
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <input type="checkbox" id="remember" className="rounded border-input cursor-pointer" />
+                    <Checkbox id="remember" />
                     <label htmlFor="remember" className="text-sm text-muted-foreground cursor-pointer">
                       Ingat saya
                     </label>

@@ -10,6 +10,7 @@ import {
   GearIcon,
   FileTextIcon,
   LightningBoltIcon,
+  TableIcon,
 } from "@radix-ui/react-icons"
 import { Separator } from "@/components/ui/separator"
 
@@ -33,6 +34,11 @@ const navItems = [
     label: "Pipeline",
     href: "/pipeline",
     icon: RocketIcon,
+  },
+  {
+    label: "Dataset",
+    href: "/datasets",
+    icon: TableIcon,
   },
   {
     label: "Dokumentasi",

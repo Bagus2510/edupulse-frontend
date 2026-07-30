@@ -8,6 +8,16 @@ import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { Progress } from "@/components/ui/progress"
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import {
   ArrowLeftIcon,
   PlayIcon,
   ReloadIcon,
@@ -82,6 +92,7 @@ export default function PipelineDetailPage() {
   const [runStatus, setRunStatus] = React.useState<string | null>(null)
   const [progress, setProgress] = React.useState(0)
   const [deleting, setDeleting] = React.useState(false)
+  const [deleteOpen, setDeleteOpen] = React.useState(false)
 
   React.useEffect(() => {
     fetchPipeline()
@@ -139,7 +150,7 @@ export default function PipelineDetailPage() {
   }
 
   const handleDelete = async () => {
-    if (!confirm("Hapus pipeline ini?")) return
+    setDeleteOpen(false)
     setDeleting(true)
     try {
       await fetch(`${API_URL}/api/pipelines/${pipelineId}`, { method: "DELETE" })
@@ -160,6 +171,7 @@ export default function PipelineDetailPage() {
   if (!pipeline) return null
 
   return (
+    <>
     <motion.div
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
@@ -183,7 +195,7 @@ export default function PipelineDetailPage() {
             <Pencil1Icon className="size-3.5 mr-1" />
             Edit
           </Button>
-          <Button variant="outline" size="sm" className="text-red-400 hover:text-red-400" onClick={handleDelete} disabled={deleting}>
+          <Button variant="outline" size="sm" className="text-red-400 hover:text-red-400" onClick={() => setDeleteOpen(true)} disabled={deleting}>
             <TrashIcon className="size-3.5 mr-1" />
             Hapus
           </Button>
@@ -282,5 +294,23 @@ export default function PipelineDetailPage() {
         </Button>
       </div>
     </motion.div>
+
+      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Hapus Pipeline</AlertDialogTitle>
+            <AlertDialogDescription>
+              Pipeline <span className="font-mono font-medium text-foreground">{pipeline.name}</span> akan dihapus permanen beserta semua langkah transformasinya.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Batal</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Hapus
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   )
 }

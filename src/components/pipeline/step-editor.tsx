@@ -11,6 +11,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent } from "@/components/ui/card"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 export interface PipelineStep {
   id: string
@@ -41,8 +43,6 @@ function genId() {
 }
 
 export function StepEditor({ steps, onChange, tables }: StepEditorProps) {
-  const [templateOpen, setTemplateOpen] = React.useState<number | null>(null)
-
   const addStep = () => {
     onChange([
       ...steps,
@@ -67,7 +67,6 @@ export function StepEditor({ steps, onChange, tables }: StepEditorProps) {
 
   const applyTemplate = (stepId: string, query: string) => {
     updateStep(stepId, "query", query)
-    setTemplateOpen(null)
   }
 
   const highlight = (code: string, lang: string) => {
@@ -107,30 +106,31 @@ export function StepEditor({ steps, onChange, tables }: StepEditorProps) {
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs">Tipe Query</Label>
-                <select
-                  value={step.query_type}
-                  onChange={(e) => updateStep(step.id, "query_type", e.target.value)}
-                  className="w-full h-8 px-3 rounded-lg border border-border/60 bg-background text-sm focus:outline-none focus:ring-2 focus:ring-pulse/30"
-                >
-                  <option value="sql">SQL</option>
-                  <option value="python">Python</option>
-                </select>
+                <Select value={step.query_type} onValueChange={(v) => v && updateStep(step.id, "query_type", v)}>
+                  <SelectTrigger className="w-full h-8">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="sql">SQL</SelectItem>
+                    <SelectItem value="python">Python</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label className="text-xs">Source Table (opsional)</Label>
-                <select
-                  value={step.source_table}
-                  onChange={(e) => updateStep(step.id, "source_table", e.target.value)}
-                  className="w-full h-8 px-3 rounded-lg border border-border/60 bg-background text-sm focus:outline-none focus:ring-2 focus:ring-pulse/30"
-                >
-                  <option value="">Pilih source...</option>
-                  {tables.map((t) => (
-                    <option key={t.full_name} value={t.full_name}>{t.full_name}</option>
-                  ))}
-                </select>
+                <Select value={step.source_table} onValueChange={(v) => updateStep(step.id, "source_table", v ?? "")}>
+                  <SelectTrigger className="w-full h-8">
+                    <SelectValue placeholder="Pilih source..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {tables.map((t) => (
+                      <SelectItem key={t.full_name} value={t.full_name}>{t.full_name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs">Destination Table (opsional)</Label>
@@ -146,30 +146,31 @@ export function StepEditor({ steps, onChange, tables }: StepEditorProps) {
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
                 <Label className="text-xs">Query</Label>
-                <div className="relative">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 text-xs"
-                    onClick={() => setTemplateOpen(templateOpen === index ? null : index)}
+                <Popover>
+                  <PopoverTrigger
+                    render={
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 text-xs"
+                      />
+                    }
                   >
                     <PlusIcon className="size-3 mr-1" />
                     Template
-                  </Button>
-                  {templateOpen === index && (
-                    <div className="absolute right-0 top-8 z-50 w-64 bg-popover border border-border rounded-lg shadow-lg p-1.5">
-                      {SQL_TEMPLATES.map((tpl) => (
-                        <button
-                          key={tpl.label}
-                          className="w-full text-left px-2.5 py-1.5 text-xs rounded hover:bg-muted transition-colors"
-                          onClick={() => applyTemplate(step.id, tpl.query)}
-                        >
-                          {tpl.label}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                  </PopoverTrigger>
+                  <PopoverContent align="end" sideOffset={4} className="w-64 p-1.5">
+                    {SQL_TEMPLATES.map((tpl) => (
+                      <button
+                        key={tpl.label}
+                        className="w-full text-left px-2.5 py-1.5 text-xs rounded hover:bg-muted transition-colors"
+                        onClick={() => applyTemplate(step.id, tpl.query)}
+                      >
+                        {tpl.label}
+                      </button>
+                    ))}
+                  </PopoverContent>
+                </Popover>
               </div>
               <div className="rounded-lg border border-border/60 overflow-hidden">
                 <Editor

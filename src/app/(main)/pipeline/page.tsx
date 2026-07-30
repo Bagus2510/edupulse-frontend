@@ -78,10 +78,26 @@ export default function PipelinePage() {
   const [pipelines, setPipelines] = React.useState<Pipeline[]>([])
   const [loading, setLoading] = React.useState(true)
   const [runningId, setRunningId] = React.useState<number | null>(null)
+  const pollRef = React.useRef<ReturnType<typeof setInterval> | null>(null)
 
   React.useEffect(() => {
     fetchPipelines()
+    return () => { if (pollRef.current) clearInterval(pollRef.current) }
   }, [])
+
+  const startPolling = () => {
+    if (pollRef.current) clearInterval(pollRef.current)
+    pollRef.current = setInterval(async () => {
+      await fetchPipelines()
+      const res = await fetch(`${API_URL}/api/pipelines`)
+      const data = await res.json()
+      const hasRunning = data.some((p: Pipeline) => p.status === "running")
+      if (!hasRunning && pollRef.current) {
+        clearInterval(pollRef.current)
+        pollRef.current = null
+      }
+    }, 3000)
+  }
 
   const fetchPipelines = async () => {
     try {
@@ -104,6 +120,7 @@ export default function PipelinePage() {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       })
       fetchPipelines()
+      startPolling()
     } catch {
       // ignore
     } finally {

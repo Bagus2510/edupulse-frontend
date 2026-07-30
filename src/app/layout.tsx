@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Outfit, JetBrains_Mono } from "next/font/google";
+import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 
 const outfit = Outfit({
@@ -32,6 +33,7 @@ export default function RootLayout({
       <body className="h-full overflow-hidden">
         <div className="grain" />
         {children}
+        <Toaster position="bottom-right" richColors />
       </body>
     </html>
   );
