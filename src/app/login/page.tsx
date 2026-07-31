@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { MixIcon, PersonIcon, LockClosedIcon, EyeOpenIcon, EyeClosedIcon } from "@radix-ui/react-icons"
-import { motion, useMotionValue, useTransform, useSpring } from "motion/react"
+import { motion, type Variants, useMotionValue, useTransform, useSpring } from "motion/react"
 import * as React from "react"
 import { useRouter } from "next/navigation"
 import { setAuth, isAuthenticated } from "@/lib/auth"
@@ -17,12 +17,12 @@ const containerVariants = {
     opacity: 1,
     transition: { staggerChildren: 0.08, delayChildren: 0.1 },
   },
-}
+} satisfies Variants
 
 const itemVariants = {
   hidden: { opacity: 0, y: 16 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: "easeOut" as const } },
-}
+  show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: "easeOut" } },
+} satisfies Variants
 
 // Official Apache Superset logo (Simple Icons - CC0)
 function SupersetLogo({ className }: { className?: string }) {

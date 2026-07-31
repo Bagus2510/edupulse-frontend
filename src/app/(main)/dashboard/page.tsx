@@ -33,7 +33,7 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
 } from "@radix-ui/react-icons"
-import { motion } from "motion/react"
+import { motion, type Variants } from "motion/react"
 import * as React from "react"
 import { embedDashboard } from "@superset-ui/embedded-sdk"
 import { API_URL } from "@/lib/constants"
@@ -44,12 +44,12 @@ const containerVariants = {
     opacity: 1,
     transition: { staggerChildren: 0.06 },
   },
-}
+} satisfies Variants
 
 const itemVariants = {
   hidden: { opacity: 0, y: 12 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: "easeOut" as const } },
-}
+  show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: "easeOut" } },
+} satisfies Variants
 
 interface DashboardItem {
   id: number

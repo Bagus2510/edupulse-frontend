@@ -9,19 +9,20 @@ import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { StepEditor, PipelineStep } from "@/components/pipeline/step-editor"
 import { RocketIcon, ArrowLeftIcon, ReloadIcon, FileTextIcon } from "@radix-ui/react-icons"
-import { motion } from "motion/react"
+import { FieldGuide } from "@/components/pipeline/field-guide"
+import { motion, type Variants } from "motion/react"
 import { API_URL } from "@/lib/constants"
 import { getAccessToken } from "@/lib/auth"
 
 const containerVariants = {
   hidden: { opacity: 0 },
   show: { opacity: 1, transition: { staggerChildren: 0.06 } },
-}
+} satisfies Variants
 
 const itemVariants = {
   hidden: { opacity: 0, y: 12 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: "easeOut" as const } },
-}
+  show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: "easeOut" } },
+} satisfies Variants
 
 export default function PipelineBuilderPage() {
   const router = useRouter()
@@ -30,6 +31,8 @@ export default function PipelineBuilderPage() {
 
   const [name, setName] = React.useState("")
   const [description, setDescription] = React.useState("")
+  const [maxActiveRuns, setMaxActiveRuns] = React.useState(1)
+  const [onFailureCallback, setOnFailureCallback] = React.useState("")
   const [steps, setSteps] = React.useState<PipelineStep[]>([])
   const [tables, setTables] = React.useState<{ full_name: string }[]>([])
   const [saving, setSaving] = React.useState(false)
@@ -59,6 +62,8 @@ export default function PipelineBuilderPage() {
       const data = await res.json()
       setName(data.name)
       setDescription(data.description || "")
+      setMaxActiveRuns(data.max_active_runs || 1)
+      setOnFailureCallback(data.on_failure_callback || "")
       setSteps(
         data.steps.map((s: Record<string, unknown>) => ({
           id: String(s.id),
@@ -67,6 +72,9 @@ export default function PipelineBuilderPage() {
           query: s.query as string,
           query_type: s.query_type as "sql" | "python",
           dest_table: (s.dest_table as string) || "",
+          execution_timeout: (s.execution_timeout as number) || 300,
+          retries: (s.retries as number) || 1,
+          retry_delay: (s.retry_delay as number) || 5,
         }))
       )
     } catch {
@@ -83,12 +91,17 @@ export default function PipelineBuilderPage() {
       const payload = {
         name: name.trim(),
         description: description.trim(),
+        max_active_runs: maxActiveRuns,
+        on_failure_callback: onFailureCallback.trim(),
         steps: steps.map((s, i) => ({
           name: s.name,
           source_table: s.source_table,
           query: s.query,
           query_type: s.query_type,
           dest_table: s.dest_table,
+          execution_timeout: s.execution_timeout,
+          retries: s.retries,
+          retry_delay: s.retry_delay,
         })),
       }
 
@@ -172,6 +185,52 @@ export default function PipelineBuilderPage() {
                 placeholder="Deskripsi singkat pipeline ini"
                 className="h-9"
               />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-1.5">
+                  <Label className="text-xs">Max Active Runs</Label>
+                  <FieldGuide
+                    title="Max Active Runs"
+                    description="Jumlah maksimum instance pipeline yang bisa berjalan bersamaan. Mengatur berapa banyak run dari pipeline ini yang boleh aktif di waktu yang sama."
+                    tips={[
+                      "Default: 1 (run satu per satu)",
+                      "Naikkan jika pipeline harus dijalankan berulang kali",
+                      "Set ke 1 untuk mencegah duplikasi data",
+                      " Berguna untuk scheduled pipeline yang harus menunggu run sebelumnya selesai",
+                    ]}
+                  />
+                </div>
+                <Input
+                  type="number"
+                  value={maxActiveRuns}
+                  onChange={(e) => setMaxActiveRuns(parseInt(e.target.value) || 1)}
+                  min={1}
+                  max={10}
+                  className="h-9"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-1.5">
+                  <Label className="text-xs">On Failure Callback (opsional)</Label>
+                  <FieldGuide
+                    title="On Failure Callback"
+                    description="URL endpoint yang akan dipanggil oleh Airflow ketika pipeline gagal. Berguna untuk mengirim notifikasi ke Slack, email, atau sistem monitoring."
+                    tips={[
+                      "Format: https://your-webhook.com/notify",
+                      "Airflow akan POST info error ke URL ini",
+                      "Contoh: Slack Incoming Webhook URL",
+                      "Kosongkan jika tidak butuh notifikasi",
+                    ]}
+                  />
+                </div>
+                <Input
+                  value={onFailureCallback}
+                  onChange={(e) => setOnFailureCallback(e.target.value)}
+                  placeholder="https://webhook.example.com/notify"
+                  className="h-9"
+                />
+              </div>
             </div>
           </CardContent>
         </Card>

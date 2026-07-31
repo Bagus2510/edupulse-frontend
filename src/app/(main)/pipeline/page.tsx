@@ -14,7 +14,7 @@ import {
   PlayIcon,
   LightningBoltIcon,
 } from "@radix-ui/react-icons"
-import { motion } from "motion/react"
+import { motion, type Variants } from "motion/react"
 import * as React from "react"
 import { useRouter } from "next/navigation"
 import { API_URL } from "@/lib/constants"
@@ -26,12 +26,12 @@ const containerVariants = {
     opacity: 1,
     transition: { staggerChildren: 0.06 },
   },
-}
+} satisfies Variants
 
 const itemVariants = {
   hidden: { opacity: 0, y: 12 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: "easeOut" as const } },
-}
+  show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: "easeOut" } },
+} satisfies Variants
 
 type PipelineStatus = "draft" | "active" | "running" | "success" | "failed"
 
@@ -88,9 +88,9 @@ export default function PipelinePage() {
   const startPolling = () => {
     if (pollRef.current) clearInterval(pollRef.current)
     pollRef.current = setInterval(async () => {
-      await fetchPipelines()
       const res = await fetch(`${API_URL}/api/pipelines`)
       const data = await res.json()
+      setPipelines(data)
       const hasRunning = data.some((p: Pipeline) => p.status === "running")
       if (!hasRunning && pollRef.current) {
         clearInterval(pollRef.current)

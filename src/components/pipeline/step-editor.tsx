@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent } from "@/components/ui/card"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { FieldGuide } from "./field-guide"
 
 export interface PipelineStep {
   id: string
@@ -21,6 +22,9 @@ export interface PipelineStep {
   query: string
   query_type: "sql" | "python"
   dest_table: string
+  execution_timeout: number
+  retries: number
+  retry_delay: number
 }
 
 interface StepEditorProps {
@@ -53,11 +57,14 @@ export function StepEditor({ steps, onChange, tables }: StepEditorProps) {
         query: "",
         query_type: "sql",
         dest_table: "",
+        execution_timeout: 300,
+        retries: 1,
+        retry_delay: 5,
       },
     ])
   }
 
-  const updateStep = (id: string, field: keyof PipelineStep, value: string) => {
+  const updateStep = (id: string, field: keyof PipelineStep, value: string | number) => {
     onChange(steps.map((s) => (s.id === id ? { ...s, [field]: value } : s)))
   }
 
@@ -187,6 +194,78 @@ export function StepEditor({ steps, onChange, tables }: StepEditorProps) {
                     minHeight: 80,
                   }}
                   textareaClassName="!outline-none"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-3">
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-1.5">
+                  <Label className="text-xs">Timeout (detik)</Label>
+                  <FieldGuide
+                    title="Execution Timeout"
+                    description="Batas waktu maksimum eksekusi step ini. Jika melebihi batas, step akan dianggap gagal dan dihentikan oleh Airflow."
+                    tips={[
+                      "Default: 300 detik (5 menit)",
+                      "SQL Query biasanya cukup 60-120 detik",
+                      "Python Transform bisa butuh lebih lama tergantung ukuran data",
+                      "Set ke 0 untuk tanpa batas (tidak disarankan)",
+                    ]}
+                  />
+                </div>
+                <Input
+                  type="number"
+                  value={step.execution_timeout}
+                  onChange={(e) => updateStep(step.id, "execution_timeout", parseInt(e.target.value) || 300)}
+                  min={1}
+                  max={3600}
+                  className="h-8 text-sm"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-1.5">
+                  <Label className="text-xs">Retries</Label>
+                  <FieldGuide
+                    title="Retry Count"
+                    description="Jumlah kali Airflow akan mencoba menjalankan ulang step ini jika gagal sebelum dianggap gagal total."
+                    tips={[
+                      "Default: 1 retry",
+                      "Network timeout biasanya butuh 1-2 retry",
+                      "Jangan set terlalu tinggi untuk menghindari infinite loops",
+                      "Step gagal akan retry dengan delay di antara percobaan",
+                    ]}
+                  />
+                </div>
+                <Input
+                  type="number"
+                  value={step.retries}
+                  onChange={(e) => updateStep(step.id, "retries", parseInt(e.target.value) || 0)}
+                  min={0}
+                  max={10}
+                  className="h-8 text-sm"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-1.5">
+                  <Label className="text-xs">Retry Delay (mnt)</Label>
+                  <FieldGuide
+                    title="Retry Delay"
+                    description="Waktu tunggu (dalam menit) antara setiap percobaan retry. Memberi waktu untuk sistem pulih dari error sementara."
+                    tips={[
+                      "Default: 5 menit",
+                      "Untuk network issues, 2-5 menit sudah cukup",
+                      "Untuk resource contention, bisa set 10-15 menit",
+                      "Terlalu pendek = retry sebelum sistem pulih",
+                    ]}
+                  />
+                </div>
+                <Input
+                  type="number"
+                  value={step.retry_delay}
+                  onChange={(e) => updateStep(step.id, "retry_delay", parseInt(e.target.value) || 1)}
+                  min={1}
+                  max={60}
+                  className="h-8 text-sm"
                 />
               </div>
             </div>

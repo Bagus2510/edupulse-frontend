@@ -36,7 +36,7 @@ import {
   ColumnsIcon,
   RowsIcon,
 } from "@radix-ui/react-icons"
-import { motion } from "motion/react"
+import { motion, type Variants } from "motion/react"
 import { toast } from "sonner"
 import { API_URL } from "@/lib/constants"
 import { getAccessToken } from "@/lib/auth"
@@ -59,12 +59,12 @@ interface TableDetail {
 const containerVariants = {
   hidden: { opacity: 0 },
   show: { opacity: 1, transition: { staggerChildren: 0.06 } },
-}
+} satisfies Variants
 
 const itemVariants = {
   hidden: { opacity: 0, y: 12 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: "easeOut" as const } },
-}
+  show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: "easeOut" } },
+} satisfies Variants
 
 function formatNumber(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`

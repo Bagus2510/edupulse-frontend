@@ -15,7 +15,7 @@ import {
   MixIcon,
   DashboardIcon,
 } from "@radix-ui/react-icons"
-import { motion } from "motion/react"
+import { motion, type Variants } from "motion/react"
 import Link from "next/link"
 import * as React from "react"
 import { API_URL } from "@/lib/constants"
@@ -35,12 +35,12 @@ const containerVariants = {
       staggerChildren: 0.08,
     },
   },
-}
+} satisfies Variants
 
 const itemVariants = {
   hidden: { opacity: 0, y: 16 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: "easeOut" as const } },
-}
+  show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: "easeOut" } },
+} satisfies Variants
 
 interface Stat {
   label: string

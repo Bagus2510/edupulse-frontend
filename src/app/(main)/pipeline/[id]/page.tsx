@@ -40,6 +40,9 @@ interface PipelineStep {
   query: string
   query_type: string
   dest_table: string | null
+  execution_timeout: number | null
+  retries: number | null
+  retry_delay: number | null
 }
 
 interface Pipeline {
@@ -48,6 +51,8 @@ interface Pipeline {
   description: string | null
   status: string
   last_run_at: string | null
+  max_active_runs: number | null
+  on_failure_callback: string | null
   steps: PipelineStep[]
   created_at: string
   updated_at: string
@@ -254,6 +259,20 @@ export default function PipelineDetailPage() {
                 <div>
                   <span className="text-muted-foreground">Dest: </span>
                   <span className="font-mono">{step.dest_table || "-"}</span>
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-3 text-xs">
+                <div>
+                  <span className="text-muted-foreground">Timeout: </span>
+                  <span className="font-mono">{step.execution_timeout || 300}s</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Retries: </span>
+                  <span className="font-mono">{step.retries || 1}</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Retry Delay: </span>
+                  <span className="font-mono">{step.retry_delay || 5}m</span>
                 </div>
               </div>
               <div className="rounded-lg bg-background border border-border/40 p-3 overflow-x-auto">

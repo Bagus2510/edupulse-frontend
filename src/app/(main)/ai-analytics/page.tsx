@@ -26,7 +26,7 @@ import {
   PaperPlaneIcon,
   ReloadIcon,
 } from "@radix-ui/react-icons"
-import { motion, AnimatePresence } from "motion/react"
+import { motion, AnimatePresence, type Variants } from "motion/react"
 import * as React from "react"
 import Markdown from "react-markdown"
 import { embedDashboard } from "@superset-ui/embedded-sdk"
@@ -38,12 +38,12 @@ const containerVariants = {
     opacity: 1,
     transition: { staggerChildren: 0.06 },
   },
-}
+} satisfies Variants
 
 const itemVariants = {
   hidden: { opacity: 0, y: 12 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: "easeOut" as const } },
-}
+  show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: "easeOut" } },
+} satisfies Variants
 
 interface DashboardItem {
   id: number
