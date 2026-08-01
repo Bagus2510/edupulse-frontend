@@ -13,6 +13,22 @@ import { FieldGuide } from "@/components/pipeline/field-guide"
 import { motion, type Variants } from "motion/react"
 import { API_URL } from "@/lib/constants"
 import { getAccessToken } from "@/lib/auth"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+
+const SCHEDULE_OPTIONS = [
+  { value: "manual", label: "Manual", cron: "" },
+  { value: "@hourly", label: "@hourly", cron: "@hourly" },
+  { value: "@daily", label: "@daily (setiap jam 00:00)", cron: "@daily" },
+  { value: "@weekly", label: "@weekly (setiap Minggu)", cron: "@weekly" },
+  { value: "@monthly", label: "@monthly (tanggal 1)", cron: "@monthly" },
+  { value: "custom", label: "Custom Cron", cron: "" },
+]
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -33,6 +49,8 @@ export default function PipelineBuilderPage() {
   const [description, setDescription] = React.useState("")
   const [maxActiveRuns, setMaxActiveRuns] = React.useState(1)
   const [onFailureCallback, setOnFailureCallback] = React.useState("")
+  const [scheduleOption, setScheduleOption] = React.useState("manual")
+  const [customCron, setCustomCron] = React.useState("")
   const [steps, setSteps] = React.useState<PipelineStep[]>([])
   const [tables, setTables] = React.useState<{ full_name: string }[]>([])
   const [saving, setSaving] = React.useState(false)
@@ -50,9 +68,9 @@ export default function PipelineBuilderPage() {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       })
       const data = await res.json()
-      setTables(data)
+      setTables(Array.isArray(data) ? data : [])
     } catch {
-      // ignore
+      setTables([])
     }
   }
 
@@ -64,6 +82,18 @@ export default function PipelineBuilderPage() {
       setDescription(data.description || "")
       setMaxActiveRuns(data.max_active_runs || 1)
       setOnFailureCallback(data.on_failure_callback || "")
+
+      // Restore schedule option
+      const interval = data.schedule_interval || ""
+      if (!interval) {
+        setScheduleOption("manual")
+      } else if (SCHEDULE_OPTIONS.some((o) => o.value === interval)) {
+        setScheduleOption(interval)
+      } else {
+        setScheduleOption("custom")
+        setCustomCron(interval)
+      }
+
       setSteps(
         data.steps.map((s: Record<string, unknown>) => ({
           id: String(s.id),
@@ -84,6 +114,12 @@ export default function PipelineBuilderPage() {
     }
   }
 
+  const getScheduleInterval = (): string => {
+    if (scheduleOption === "custom") return customCron.trim()
+    const opt = SCHEDULE_OPTIONS.find((o) => o.value === scheduleOption)
+    return opt?.cron || ""
+  }
+
   const handleSave = async () => {
     if (!name.trim()) return
     setSaving(true)
@@ -93,6 +129,7 @@ export default function PipelineBuilderPage() {
         description: description.trim(),
         max_active_runs: maxActiveRuns,
         on_failure_callback: onFailureCallback.trim(),
+        schedule_interval: getScheduleInterval(),
         steps: steps.map((s, i) => ({
           name: s.name,
           source_table: s.source_table,
@@ -231,6 +268,53 @@ export default function PipelineBuilderPage() {
                   className="h-9"
                 />
               </div>
+            </div>
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-1.5">
+                <Label className="text-xs">Schedule Interval</Label>
+                <FieldGuide
+                  title="Schedule Interval"
+                  description="Menentukan kapan pipeline akan dijalankan secara otomatis oleh Airflow. Pilih 'Manual' jika pipeline hanya dijalankan saat user menekan tombol Run."
+                  tips={[
+                    "Manual: tidak ada scheduler, trigger dari UI saja",
+                    "@hourly: setiap jam menit 0",
+                    "@daily: setiap hari jam 00:00 UTC",
+                    "@weekly: setiap Minggu jam 00:00 UTC",
+                    "@monthly: setiap tanggal 1 jam 00:00 UTC",
+                    "Custom: masukkan cron expression (misal: 0 6 * * 1-5)",
+                  ]}
+                />
+              </div>
+              <div className="flex gap-2">
+                <Select
+                  value={scheduleOption}
+                  onValueChange={(val) => { if (val) setScheduleOption(val) }}
+                >
+                  <SelectTrigger className="h-9 w-[200px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {SCHEDULE_OPTIONS.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {scheduleOption === "custom" && (
+                  <Input
+                    value={customCron}
+                    onChange={(e) => setCustomCron(e.target.value)}
+                    placeholder="0 6 * * 1-5"
+                    className="h-9 flex-1 font-mono text-xs"
+                  />
+                )}
+              </div>
+              {scheduleOption === "custom" && customCron && (
+                <p className="text-[11px] text-muted-foreground font-mono">
+                  Schedule: {customCron}
+                </p>
+              )}
             </div>
           </CardContent>
         </Card>

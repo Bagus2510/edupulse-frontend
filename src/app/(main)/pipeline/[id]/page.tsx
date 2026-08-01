@@ -47,12 +47,14 @@ interface PipelineStep {
 
 interface Pipeline {
   id: number
+  dag_id: string
   name: string
   description: string | null
   status: string
   last_run_at: string | null
   max_active_runs: number | null
   on_failure_callback: string | null
+  schedule_interval: string | null
   steps: PipelineStep[]
   created_at: string
   updated_at: string
@@ -208,6 +210,25 @@ export default function PipelineDetailPage() {
       </div>
 
       <Separator />
+
+      <Card className="border-border/60">
+        <CardContent className="py-4">
+          <div className="grid grid-cols-3 gap-4 text-xs">
+            <div>
+              <span className="text-muted-foreground">DAG ID: </span>
+              <span className="font-mono text-foreground">{pipeline.dag_id || "-"}</span>
+            </div>
+            <div>
+              <span className="text-muted-foreground">Schedule: </span>
+              <span className="font-mono text-foreground">{pipeline.schedule_interval || "Manual"}</span>
+            </div>
+            <div>
+              <span className="text-muted-foreground">Max Active Runs: </span>
+              <span className="font-mono text-foreground">{pipeline.max_active_runs || 1}</span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {runStatus === "running" && (
         <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }}>
