@@ -15,6 +15,7 @@ import {
   Pencil1Icon,
   TrashIcon,
   EyeOpenIcon,
+  StopIcon,
 } from "@radix-ui/react-icons"
 import { motion, type Variants } from "motion/react"
 import * as React from "react"
@@ -104,6 +105,8 @@ export default function PipelinePage() {
   const [loading, setLoading] = React.useState(true)
   const [runningId, setRunningId] = React.useState<number | null>(null)
   const [deleteTarget, setDeleteTarget] = React.useState<Pipeline | null>(null)
+  const [interruptTarget, setInterruptTarget] = React.useState<Pipeline | null>(null)
+  const [interrupting, setInterrupting] = React.useState(false)
   const pollRef = React.useRef<ReturnType<typeof setInterval> | null>(null)
 
   React.useEffect(() => {
@@ -164,6 +167,24 @@ export default function PipelinePage() {
       // ignore
     } finally {
       setDeleteTarget(null)
+    }
+  }
+
+  const handleInterrupt = async () => {
+    if (!interruptTarget) return
+    setInterrupting(true)
+    const token = getAccessToken()
+    try {
+      await fetch(`${API_URL}/api/pipelines/${interruptTarget.id}/cancel`, {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+      setInterruptTarget(null)
+      fetchPipelines()
+    } catch {
+      // ignore
+    } finally {
+      setInterrupting(false)
     }
   }
 
@@ -266,20 +287,35 @@ export default function PipelinePage() {
                           <TrashIcon className="size-3.5" />
                         </Button>
                         <div className="w-px h-5 bg-border/60 mx-1" />
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-8 text-xs"
-                          onClick={(e) => handleRun(pipeline.id, e)}
-                          disabled={runningId === pipeline.id || pipeline.step_count === 0}
-                        >
-                          {runningId === pipeline.id ? (
-                            <ReloadIcon className="size-3 mr-1 animate-spin" />
-                          ) : (
-                            <PlayIcon className="size-3 mr-1" />
-                          )}
-                          Run
-                        </Button>
+                        {pipeline.status === "running" ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 text-xs border-red-500/30 text-red-400 hover:bg-red-500/10 hover:text-red-300"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setInterruptTarget(pipeline)
+                            }}
+                          >
+                            <StopIcon className="size-3 mr-1" />
+                            Stop
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 text-xs"
+                            onClick={(e) => handleRun(pipeline.id, e)}
+                            disabled={runningId === pipeline.id || pipeline.step_count === 0}
+                          >
+                            {runningId === pipeline.id ? (
+                              <ReloadIcon className="size-3 mr-1 animate-spin" />
+                            ) : (
+                              <PlayIcon className="size-3 mr-1" />
+                            )}
+                            Run
+                          </Button>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -330,6 +366,38 @@ export default function PipelinePage() {
           </CardContent>
         </Card>
       </motion.div>
+
+      {/* Interrupt Confirmation */}
+      <AlertDialog open={!!interruptTarget} onOpenChange={(open) => !open && setInterruptTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Interrupt Pipeline</AlertDialogTitle>
+            <AlertDialogDescription>
+              Pipeline <span className="font-mono font-medium text-foreground">{interruptTarget?.name}</span> sedang berjalan. Yakin ingin menghentikannya? Status akan diubah ke <span className="font-medium text-foreground">failed</span>.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={interrupting}>Batal</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleInterrupt}
+              disabled={interrupting}
+              className="bg-red-500 text-white hover:bg-red-600"
+            >
+              {interrupting ? (
+                <>
+                  <div className="size-3 border-2 border-white/30 border-t-white rounded-full animate-spin mr-1.5" />
+                  Menghentikan...
+                </>
+              ) : (
+                <>
+                  <StopIcon className="size-3 mr-1.5" />
+                  Stop Pipeline
+                </>
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Delete Confirmation */}
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>

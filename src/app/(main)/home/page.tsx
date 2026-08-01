@@ -60,7 +60,7 @@ interface HomeData {
 }
 
 const ARCHITECTURE_STEPS = [
-  { label: "Data CSV", sub: "Dataset OULAD" },
+  { label: "Data CSV", sub: "Dataset CSV" },
   { label: "Lapisan Mentah", sub: "PostgreSQL" },
   { label: "DAG Airflow", sub: "Pipeline ETL" },
   { label: "Data Mart", sub: "Teragregasi" },
@@ -69,7 +69,7 @@ const ARCHITECTURE_STEPS = [
 ]
 
 const QUICK_ACCESS = [
-  { title: "Performa Mahasiswa", desc: "Distribusi nilai & tren", href: "/dashboard", color: "pulse" },
+  { title: "Data Overview", desc: "Distribusi & tren data", href: "/dashboard", color: "pulse" },
   { title: "Pipeline ETL", desc: "Kelola pipeline transformasi", href: "/pipeline", color: "amber-500" },
   { title: "Analisis AI", desc: "Insight berbasis Gemini", href: "/ai-analytics", color: "emerald-500" },
 ]
@@ -139,7 +139,7 @@ export default function HomePage() {
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Ringkasan</h1>
             <p className="text-sm text-muted-foreground">
-              Analitik akademik dalam sekilas
+              Ringkasan analitik data
             </p>
           </div>
         </div>

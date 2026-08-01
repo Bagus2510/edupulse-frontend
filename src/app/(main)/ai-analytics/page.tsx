@@ -5,6 +5,17 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -15,6 +26,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { PageSkeletonWrapper } from "@/components/skeletons/page-skeleton-wrapper"
 import { AiAnalyticsSkeleton } from "@/components/skeletons/ai-analytics-skeleton"
 import {
@@ -27,13 +44,70 @@ import {
   BarChartIcon,
   Pencil1Icon,
   EyeOpenIcon,
+  PlusIcon,
+  ChatBubbleIcon,
+  ChevronDownIcon,
+  TrashIcon as TrashIcon2,
 } from "@radix-ui/react-icons"
 import { motion, AnimatePresence, type Variants } from "motion/react"
 import * as React from "react"
-import Markdown from "react-markdown"
 import { embedDashboard } from "@superset-ui/embedded-sdk"
 import { API_URL } from "@/lib/constants"
 import { getAccessToken } from "@/lib/auth"
+
+function SimpleMarkdown({ content }: { content: string }) {
+  const normalized = content.replace(/\r\n?/g, "\n")
+  const lines = normalized.split("\n")
+  const elements: React.ReactNode[] = []
+  let listItems: React.ReactNode[] = []
+
+  const flushList = () => {
+    if (listItems.length > 0) {
+      elements.push(<ul key={`ul-${elements.length}`} className="list-disc pl-5 space-y-1">{listItems}</ul>)
+      listItems = []
+    }
+  }
+
+  const renderInline = (text: string) => {
+    const parts: React.ReactNode[] = []
+    const regex = /\*\*(.+?)\*\*/g
+    let lastIndex = 0
+    let match
+    while ((match = regex.exec(text)) !== null) {
+      if (match.index > lastIndex) {
+        parts.push(text.slice(lastIndex, match.index))
+      }
+      parts.push(<strong key={match.index} className="font-semibold text-foreground">{match[1]}</strong>)
+      lastIndex = regex.lastIndex
+    }
+    if (lastIndex < text.length) {
+      parts.push(text.slice(lastIndex))
+    }
+    return parts.length > 0 ? parts : text
+  }
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trimEnd()
+
+    if (line.startsWith("## ")) {
+      flushList()
+      elements.push(<h2 key={i} className="text-base font-semibold mt-4 mb-1 text-foreground">{renderInline(line.slice(3))}</h2>)
+    } else if (line.startsWith("### ")) {
+      flushList()
+      elements.push(<h3 key={i} className="text-sm font-semibold mt-3 mb-1 text-foreground">{renderInline(line.slice(4))}</h3>)
+    } else if (line.match(/^[-*]\s/)) {
+      listItems.push(<li key={i} className="text-muted-foreground">{renderInline(line.slice(2))}</li>)
+    } else if (line.trim() === "") {
+      flushList()
+    } else {
+      flushList()
+      elements.push(<p key={i} className="text-muted-foreground">{renderInline(line)}</p>)
+    }
+  }
+  flushList()
+
+  return <div className="text-sm leading-relaxed space-y-1">{elements}</div>
+}
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -63,6 +137,15 @@ interface ChatMessage {
   role: "user" | "assistant"
   content: string
   timestamp: Date
+}
+
+interface ChatSession {
+  session_id: string
+  title: string
+  dashboard_title: string
+  dashboard_uuid: string
+  created_at: string
+  updated_at: string
 }
 
 function EmbeddedDashboard({ uuid, title }: { uuid: string; title: string }) {
@@ -169,16 +252,24 @@ export default function AiAnalyticsPage() {
   const [loading, setLoading] = React.useState(true)
   const [deleteTarget, setDeleteTarget] = React.useState<DashboardItem | null>(null)
   const [deleting, setDeleting] = React.useState(false)
+  const [editTarget, setEditTarget] = React.useState<DashboardItem | null>(null)
+  const [editTitle, setEditTitle] = React.useState("")
+  const [editDescription, setEditDescription] = React.useState("")
+  const [editUuid, setEditUuid] = React.useState("")
+  const [editStatus, setEditStatus] = React.useState("active")
+  const [saving, setSaving] = React.useState(false)
 
   // Chat state
   const [chatInput, setChatInput] = React.useState("")
   const [chatMessages, setChatMessages] = React.useState<ChatMessage[]>([])
   const [isSending, setIsSending] = React.useState(false)
-  const [sessionId] = React.useState(() => crypto.randomUUID())
+  const [sessionId, setSessionId] = React.useState(() => crypto.randomUUID())
+  const [sessions, setSessions] = React.useState<ChatSession[]>([])
   const chatEndRef = React.useRef<HTMLDivElement>(null)
 
   React.useEffect(() => {
     fetchDashboards()
+    fetchSessions()
   }, [])
 
   React.useEffect(() => {
@@ -198,6 +289,66 @@ export default function AiAnalyticsPage() {
     } finally {
       setLoading(false)
     }
+  }
+
+  const fetchSessions = async (dashboardUuid?: string | null) => {
+    const token = getAccessToken()
+    const headers: Record<string, string> = {}
+    if (token) headers["Authorization"] = `Bearer ${token}`
+    try {
+      const url = dashboardUuid
+        ? `${API_URL}/api/ai/chat/sessions?dashboard_uuid=${encodeURIComponent(dashboardUuid)}`
+        : `${API_URL}/api/ai/chat/sessions`
+      const res = await fetch(url, { headers })
+      if (res.ok) {
+        const data = await res.json()
+        setSessions(data)
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  const loadSession = async (sid: string) => {
+    const token = getAccessToken()
+    const headers: Record<string, string> = {}
+    if (token) headers["Authorization"] = `Bearer ${token}`
+    try {
+      const res = await fetch(`${API_URL}/api/ai/chat/history/${sid}`, { headers })
+      if (res.ok) {
+        const data = await res.json()
+        const messages: ChatMessage[] = data.map((m: { role: string; content: string; timestamp: string }) => ({
+          role: m.role as "user" | "assistant",
+          content: m.content,
+          timestamp: new Date(m.timestamp),
+        })).filter((m: ChatMessage) => {
+          // Filter out the hidden context message
+          if (m.role === "user" && m.content.includes("Chart data:")) return false
+          return true
+        })
+        setChatMessages(messages)
+        setSessionId(sid)
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  const deleteSessionHandler = async (sid: string) => {
+    const token = getAccessToken()
+    const headers: Record<string, string> = {}
+    if (token) headers["Authorization"] = `Bearer ${token}`
+    try {
+      await fetch(`${API_URL}/api/ai/chat/sessions/${sid}`, { method: "DELETE", headers })
+      setSessions((prev) => prev.filter((s) => s.session_id !== sid))
+    } catch {
+      // ignore
+    }
+  }
+
+  const newSession = () => {
+    setSessionId(crypto.randomUUID())
+    setChatMessages([])
   }
 
   const handleSendMessage = async () => {
@@ -246,26 +397,29 @@ export default function AiAnalyticsPage() {
       const reader = res.body!.getReader()
       const decoder = new TextDecoder()
       let accumulated = ""
+      let buffer = ""
 
       while (true) {
         const { done, value } = await reader.read()
         if (done) break
-        const raw = decoder.decode(value, { stream: true })
-        const lines = raw.split("\n")
-        for (const line of lines) {
-          if (line.startsWith("data: ")) {
-            const chunk = line.slice(6)
-            accumulated += chunk
-            setChatMessages((prev) => {
-              const updated = [...prev]
-              updated[updated.length - 1] = {
-                role: "assistant",
-                content: accumulated,
-                timestamp: new Date(),
-              }
-              return updated
-            })
-          }
+        buffer += decoder.decode(value, { stream: true })
+        const messages = buffer.split("\n\n")
+        buffer = messages.pop() || ""
+        for (const msg of messages) {
+          const dataLine = msg.split("\n").find(l => l.startsWith("data: ")) || ""
+          const chunk = dataLine.slice(6).trim()
+          if (chunk === "[DONE]") break
+          if (!chunk) continue
+          accumulated += chunk.replace(/\\n/g, "\n")
+          setChatMessages((prev) => {
+            const updated = [...prev]
+            updated[updated.length - 1] = {
+              role: "assistant",
+              content: accumulated,
+              timestamp: new Date(),
+            }
+            return updated
+          })
         }
       }
     } catch {
@@ -277,6 +431,7 @@ export default function AiAnalyticsPage() {
       setChatMessages((prev) => [...prev, errorMessage])
     } finally {
       setIsSending(false)
+      fetchSessions(selectedDashboard?.superset_uuid)
     }
   }
 
@@ -294,13 +449,18 @@ export default function AiAnalyticsPage() {
       // ignore
     }
     setChatMessages([])
+    newSession()
+    fetchSessions(selectedDashboard?.superset_uuid)
   }
 
   const handleDelete = async () => {
     if (!deleteTarget) return
     setDeleting(true)
+    const token = getAccessToken()
+    const headers: Record<string, string> = {}
+    if (token) headers["Authorization"] = `Bearer ${token}`
     try {
-      await fetch(`${API_URL}/api/dashboards/${deleteTarget.id}`, { method: "DELETE" })
+      await fetch(`${API_URL}/api/dashboards/${deleteTarget.id}`, { method: "DELETE", headers })
       setDeleteTarget(null)
       setChatMessages([])
       await fetchDashboards()
@@ -308,6 +468,41 @@ export default function AiAnalyticsPage() {
       // ignore
     } finally {
       setDeleting(false)
+    }
+  }
+
+  const handleEditDashboard = (e: React.MouseEvent, dashboard: DashboardItem) => {
+    e.stopPropagation()
+    setEditTarget(dashboard)
+    setEditTitle(dashboard.title)
+    setEditDescription(dashboard.description || "")
+    setEditUuid(dashboard.superset_uuid || "")
+    setEditStatus(dashboard.status)
+  }
+
+  const confirmEdit = async () => {
+    if (!editTarget || !editTitle.trim()) return
+    setSaving(true)
+    const token = getAccessToken()
+    const headers: Record<string, string> = { "Content-Type": "application/json" }
+    if (token) headers["Authorization"] = `Bearer ${token}`
+    try {
+      await fetch(`${API_URL}/api/dashboards/${editTarget.id}`, {
+        method: "PUT",
+        headers,
+        body: JSON.stringify({
+          title: editTitle.trim(),
+          description: editDescription.trim(),
+          superset_uuid: editUuid.trim(),
+          status: editStatus,
+        }),
+      })
+      setEditTarget(null)
+      await fetchDashboards()
+    } catch {
+      // ignore
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -352,6 +547,7 @@ export default function AiAnalyticsPage() {
             onClick={() => {
               setSelectedDashboard(dashboard)
               setChatMessages([])
+              fetchSessions(dashboard.superset_uuid)
             }}
           >
             <CardContent className="px-3 py-2">
@@ -398,9 +594,7 @@ export default function AiAnalyticsPage() {
                     size="icon"
                     className="size-8 text-muted-foreground hover:text-foreground"
                     title="Edit dashboard"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                    }}
+                    onClick={(e) => handleEditDashboard(e, dashboard)}
                   >
                     <Pencil1Icon className="size-4" />
                   </Button>
@@ -465,22 +659,78 @@ export default function AiAnalyticsPage() {
                     </CardDescription>
                   </div>
                 </div>
-                {chatMessages.length > 0 && (
+                <div className="flex items-center gap-1">
                   <Button
                     variant="ghost"
                     size="icon"
                     className="size-7"
-                    onClick={handleClearHistory}
-                    title="Hapus riwayat chat"
+                    onClick={newSession}
+                    title="Chat baru"
                   >
-                    <ReloadIcon className="size-3.5" />
+                    <PlusIcon className="size-3.5" />
                   </Button>
-                )}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="size-7" title="Riwayat chat">
+                        <ChatBubbleIcon className="size-3.5" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-64">
+                      {sessions.length === 0 ? (
+                        <div className="px-3 py-2 text-xs text-muted-foreground text-center">
+                          Belum ada riwayat
+                        </div>
+                      ) : (
+                        sessions.slice(0, 10).map((s) => (
+                          <DropdownMenuItem
+                            key={s.session_id}
+                            className="flex items-center justify-between gap-2"
+                            onClick={() => loadSession(s.session_id)}
+                          >
+                            <div className="min-w-0 flex-1">
+                              <p className="text-xs font-medium truncate">
+                                {s.dashboard_title || s.title}
+                              </p>
+                              <p className="text-[10px] text-muted-foreground truncate">
+                                {new Date(s.updated_at).toLocaleDateString("id-ID", {
+                                  day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
+                                })}
+                              </p>
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="size-5 shrink-0 hover:text-destructive"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                deleteSessionHandler(s.session_id)
+                              }}
+                            >
+                              <TrashIcon className="size-3" />
+                            </Button>
+                          </DropdownMenuItem>
+                        ))
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                  {chatMessages.length > 0 && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="size-7"
+                      onClick={handleClearHistory}
+                      title="Hapus riwayat chat"
+                    >
+                      <ReloadIcon className="size-3.5" />
+                    </Button>
+                  )}
+                </div>
               </div>
             </CardHeader>
 
             {/* Chat Messages */}
-            <CardContent className="flex-1 overflow-y-auto p-4 space-y-4 min-h-[400px] max-h-[600px]">
+            <ScrollArea className="flex-1 min-h-[400px] max-h-[600px]">
+              <div className="p-4 space-y-4">
               <AnimatePresence mode="popLayout">
                 {chatMessages.length === 0 ? (
                   <motion.div
@@ -529,9 +779,7 @@ export default function AiAnalyticsPage() {
                         }`}
                       >
                         {msg.role === "assistant" ? (
-                          <div className="text-sm leading-relaxed prose prose-sm dark:prose-invert max-w-none">
-                            <Markdown>{msg.content}</Markdown>
-                          </div>
+                          <SimpleMarkdown content={msg.content} />
                         ) : (
                           <p className="text-sm">{msg.content}</p>
                         )}
@@ -556,7 +804,8 @@ export default function AiAnalyticsPage() {
                 </motion.div>
               )}
               <div ref={chatEndRef} />
-            </CardContent>
+              </div>
+            </ScrollArea>
 
             {/* Chat Input */}
             <div className="border-t p-3">
@@ -609,6 +858,75 @@ export default function AiAnalyticsPage() {
           </CardContent>
         </Card>
       </motion.div>
+
+      {/* Edit Dashboard Dialog */}
+      <Dialog open={!!editTarget} onOpenChange={(open) => { if (!open) setEditTarget(null) }} modal={false}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Dashboard</DialogTitle>
+            <DialogDescription>
+              Perbarui informasi dashboard <span className="font-medium text-foreground">{editTarget?.title}</span>
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="edit-title">Judul Dashboard</Label>
+              <Input
+                id="edit-title"
+                value={editTitle}
+                onChange={(e) => setEditTitle(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-desc">Deskripsi</Label>
+              <Input
+                id="edit-desc"
+                value={editDescription}
+                onChange={(e) => setEditDescription(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-uuid">Superset Dashboard UUID</Label>
+              <Input
+                id="edit-uuid"
+                value={editUuid}
+                onChange={(e) => setEditUuid(e.target.value)}
+                className="font-mono text-xs"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-status">Status</Label>
+              <Select value={editStatus} onValueChange={(v) => setEditStatus(v ?? "active")}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Pilih status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="pending">Pending</SelectItem>
+                  <SelectItem value="error">Error</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditTarget(null)} disabled={saving}>
+              Batal
+            </Button>
+            <Button
+              className="bg-pulse hover:bg-pulse/90 text-background"
+              onClick={confirmEdit}
+              disabled={saving || !editTitle.trim()}
+            >
+              {saving ? (
+                <>
+                  <div className="size-3 border-2 border-background/30 border-t-background rounded-full animate-spin mr-1.5" />
+                  Menyimpan...
+                </>
+              ) : "Simpan"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null) }}>

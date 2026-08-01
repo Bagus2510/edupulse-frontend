@@ -371,7 +371,7 @@ export default function DashboardPage() {
         <div className="space-y-1">
           <h1 className="text-2xl font-bold tracking-tight">Dashboard Analitik</h1>
           <p className="text-sm text-muted-foreground">
-            Dashboard Superset tersemat untuk visualisasi data akademik
+            Dashboard Superset tersemat untuk visualisasi data
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -402,7 +402,7 @@ export default function DashboardPage() {
                   <Label htmlFor="dash-title">Judul Dashboard</Label>
                   <Input
                     id="dash-title"
-                    placeholder="Contoh: Dropout Prediction"
+                    placeholder="Contoh: Revenue Analysis"
                     value={newTitle}
                     onChange={(e) => setNewTitle(e.target.value)}
                   />
@@ -411,7 +411,7 @@ export default function DashboardPage() {
                   <Label htmlFor="dash-desc">Deskripsi</Label>
                   <Input
                     id="dash-desc"
-                    placeholder="Contoh: Prediksi risiko dropout mahasiswa"
+                    placeholder="Contoh: Monthly revenue trends"
                     value={newDescription}
                     onChange={(e) => setNewDescription(e.target.value)}
                   />
