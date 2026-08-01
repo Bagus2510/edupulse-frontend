@@ -16,6 +16,16 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { PageSkeletonWrapper } from "@/components/skeletons/page-skeleton-wrapper"
 import { DashboardSkeleton } from "@/components/skeletons/dashboard-skeleton"
 import {
@@ -24,14 +34,11 @@ import {
   ExternalLinkIcon,
   LightningBoltIcon,
   PersonIcon,
-  MixIcon,
   PlusIcon,
   TrashIcon,
   Pencil1Icon,
+  EyeOpenIcon,
   CrossCircledIcon,
-  InfoCircledIcon,
-  ChevronLeftIcon,
-  ChevronRightIcon,
 } from "@radix-ui/react-icons"
 import { motion, type Variants } from "motion/react"
 import * as React from "react"
@@ -248,8 +255,6 @@ export default function DashboardPage() {
   const [editUuid, setEditUuid] = React.useState("")
   const [editStatus, setEditStatus] = React.useState("active")
   const [saving, setSaving] = React.useState(false)
-  const [currentPage, setCurrentPage] = React.useState(1)
-  const itemsPerPage = 6
 
   React.useEffect(() => {
     fetchDashboards()
@@ -446,105 +451,77 @@ export default function DashboardPage() {
         <Separator />
       </motion.div>
 
-      {/* Dashboard Selector */}
-      {(() => {
-        const totalPages = Math.ceil(dashboards.length / itemsPerPage)
-        const paginatedDashboards = dashboards.slice(
-          (currentPage - 1) * itemsPerPage,
-          currentPage * itemsPerPage
-        )
-        return (
-          <>
-            <motion.div variants={itemVariants} className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              {paginatedDashboards.map((dashboard) => (
-                <Card
-                  key={dashboard.id}
-                  className={`cursor-pointer transition-all duration-200 group ${
-                    selectedDashboard?.id === dashboard.id
-                      ? "border-pulse/50 bg-pulse/5"
-                      : "hover:border-muted-foreground/20"
-                  }`}
-                  onClick={() => setSelectedDashboard(dashboard)}
-                >
-                  <CardHeader className="pb-3">
-                    <div className="flex items-start justify-between">
-                      <div className="space-y-1 min-w-0 flex-1">
-                        <CardTitle className="text-sm truncate">{dashboard.title}</CardTitle>
-                        <CardDescription className="text-xs line-clamp-2">{dashboard.description}</CardDescription>
-                      </div>
-                      <div className="flex items-center gap-1.5 shrink-0 ml-2">
-                        <Badge
-                          variant={dashboard.status === "active" ? "success" : "secondary"}
-                        >
-                          {dashboard.status}
-                        </Badge>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="size-6 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground"
-                          onClick={(e) => handleEditDashboard(e, dashboard)}
-                        >
-                          <Pencil1Icon className="size-3" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="size-6 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
-                          onClick={(e) => handleDeleteDashboard(e, dashboard)}
-                        >
-                          <TrashIcon className="size-3" />
-                        </Button>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-2">
-                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
-                      Diperbarui {new Date(dashboard.updated_at).toLocaleDateString("id-ID")}
-                    </p>
-                    <p className="text-[10px] text-muted-foreground font-mono truncate" title={dashboard.superset_uuid || ""}>
-                      UUID: {dashboard.superset_uuid}
-                    </p>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-full mt-2 h-7 text-xs gap-1.5 cursor-pointer"
-                      onClick={(e) => handleDetail(e, dashboard)}
+      {/* Dashboard Selector - Elongated Cards */}
+      <motion.div variants={itemVariants} className="space-y-2">
+        {dashboards.map((dashboard) => (
+          <Card
+            key={dashboard.id}
+            className={`group cursor-pointer transition-all duration-200 ${
+              selectedDashboard?.id === dashboard.id
+                ? "border-pulse/50 bg-pulse/5 shadow-sm"
+                : "hover:border-muted-foreground/20 hover:shadow-sm"
+            }`}
+            onClick={() => setSelectedDashboard(dashboard)}
+          >
+            <CardContent className="px-3 py-2">
+              <div className="flex items-center gap-3">
+                <div className={`size-10 rounded-lg flex items-center justify-center shrink-0 ${
+                  selectedDashboard?.id === dashboard.id
+                    ? "bg-pulse/15 text-pulse"
+                    : "bg-muted text-muted-foreground"
+                }`}>
+                  <BarChartIcon className="size-5" />
+                </div>
+
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <h3 className="text-sm font-medium truncate">{dashboard.title}</h3>
+                    <Badge
+                      variant={dashboard.status === "active" ? "success" : "secondary"}
+                      className="shrink-0"
                     >
-                      <InfoCircledIcon className="size-3" />
-                      Detail
-                    </Button>
-                  </CardContent>
-                </Card>
-              ))}
-            </motion.div>
-            {totalPages > 1 && (
-              <motion.div variants={itemVariants} className="flex items-center justify-center gap-2 pt-2">
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="size-8"
-                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                  disabled={currentPage === 1}
-                >
-                  <ChevronLeftIcon className="size-4" />
-                </Button>
-                <span className="text-xs text-muted-foreground">
-                  {currentPage} / {totalPages}
-                </span>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="size-8"
-                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={currentPage === totalPages}
-                >
-                  <ChevronRightIcon className="size-4" />
-                </Button>
-              </motion.div>
-            )}
-          </>
-        )
-      })()}
+                      {dashboard.status}
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {dashboard.description || "Tidak ada deskripsi"}
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-1 shrink-0">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-8 text-muted-foreground hover:text-foreground"
+                    title="Lihat detail"
+                    onClick={(e) => handleDetail(e, dashboard)}
+                  >
+                    <EyeOpenIcon className="size-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-8 text-muted-foreground hover:text-foreground"
+                    title="Edit dashboard"
+                    onClick={(e) => handleEditDashboard(e, dashboard)}
+                  >
+                    <Pencil1Icon className="size-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-8 text-muted-foreground hover:text-destructive"
+                    title="Hapus"
+                    onClick={(e) => handleDeleteDashboard(e, dashboard)}
+                  >
+                    <TrashIcon className="size-4" />
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </motion.div>
 
       {/* Embedded Dashboard Area */}
       <motion.div variants={itemVariants}>
@@ -660,19 +637,21 @@ export default function DashboardPage() {
       </Dialog>
 
       {/* Delete Confirmation Dialog */}
-      <Dialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null) }}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Hapus Dashboard</DialogTitle>
-            <DialogDescription>
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null) }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Hapus Dashboard</AlertDialogTitle>
+            <AlertDialogDescription>
               Apakah Anda yakin ingin menghapus <span className="font-medium text-foreground">{deleteTarget?.title}</span>? Tindakan ini tidak dapat dibatalkan.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteTarget(null)} disabled={deleting}>
-              Batal
-            </Button>
-            <Button variant="destructive" onClick={confirmDelete} disabled={deleting}>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Batal</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
               {deleting ? (
                 <>
                   <div className="size-3 border-2 border-background/30 border-t-background rounded-full animate-spin mr-1.5" />
@@ -684,10 +663,10 @@ export default function DashboardPage() {
                   Hapus
                 </>
               )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Edit Dashboard Dialog */}
       <Dialog open={!!editTarget} onOpenChange={(open) => { if (!open) setEditTarget(null) }} modal={false}>

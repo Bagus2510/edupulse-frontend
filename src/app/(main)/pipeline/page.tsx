@@ -1,6 +1,6 @@
 "use client"
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
@@ -12,25 +12,37 @@ import {
   ClockIcon,
   PlusIcon,
   PlayIcon,
-  LightningBoltIcon,
+  Pencil1Icon,
+  TrashIcon,
+  EyeOpenIcon,
 } from "@radix-ui/react-icons"
 import { motion, type Variants } from "motion/react"
 import * as React from "react"
 import { useRouter } from "next/navigation"
 import { API_URL } from "@/lib/constants"
 import { getAccessToken } from "@/lib/auth"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 const containerVariants = {
   hidden: { opacity: 0 },
   show: {
     opacity: 1,
-    transition: { staggerChildren: 0.06 },
+    transition: { staggerChildren: 0.04 },
   },
 } satisfies Variants
 
 const itemVariants = {
-  hidden: { opacity: 0, y: 12 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: "easeOut" } },
+  hidden: { opacity: 0, y: 8 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.3, ease: "easeOut" } },
 } satisfies Variants
 
 type PipelineStatus = "draft" | "active" | "running" | "success" | "failed"
@@ -43,6 +55,34 @@ interface Pipeline {
   last_run_at: string | null
   step_count: number
   created_at: string
+}
+
+function StatusDot({ status }: { status: PipelineStatus }) {
+  const colors: Record<string, string> = {
+    draft: "bg-muted-foreground/40",
+    active: "bg-emerald-500",
+    running: "bg-amber-500 animate-pulse",
+    success: "bg-emerald-500",
+    failed: "bg-red-400",
+  }
+  return (
+    <span className={`size-2 rounded-full ${colors[status] || colors.draft}`} />
+  )
+}
+
+function StatusBadge({ status }: { status: PipelineStatus }) {
+  const variants: Record<string, string> = {
+    draft: "bg-muted text-muted-foreground border-border/50",
+    active: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+    running: "bg-amber-500/10 text-amber-400 border-amber-500/20",
+    success: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+    failed: "bg-red-500/10 text-red-400 border-red-500/20",
+  }
+  return (
+    <Badge variant="outline" className={`text-[10px] font-medium px-1.5 py-0 ${variants[status] || variants.draft}`}>
+      {status}
+    </Badge>
+  )
 }
 
 function StatusIcon({ status }: { status: PipelineStatus }) {
@@ -58,26 +98,12 @@ function StatusIcon({ status }: { status: PipelineStatus }) {
   }
 }
 
-function StatusBadge({ status }: { status: PipelineStatus }) {
-  const variants: Record<string, string> = {
-    draft: "bg-muted text-muted-foreground",
-    active: "bg-emerald-500/15 text-emerald-500",
-    running: "bg-amber-500/15 text-amber-500",
-    success: "bg-emerald-500/15 text-emerald-500",
-    failed: "bg-red-500/15 text-red-400",
-  }
-  return (
-    <Badge className={variants[status] || variants.draft}>
-      {status}
-    </Badge>
-  )
-}
-
 export default function PipelinePage() {
   const router = useRouter()
   const [pipelines, setPipelines] = React.useState<Pipeline[]>([])
   const [loading, setLoading] = React.useState(true)
   const [runningId, setRunningId] = React.useState<number | null>(null)
+  const [deleteTarget, setDeleteTarget] = React.useState<Pipeline | null>(null)
   const pollRef = React.useRef<ReturnType<typeof setInterval> | null>(null)
 
   React.useEffect(() => {
@@ -111,7 +137,8 @@ export default function PipelinePage() {
     }
   }
 
-  const handleRun = async (id: number) => {
+  const handleRun = async (id: number, e: React.MouseEvent) => {
+    e.stopPropagation()
     setRunningId(id)
     try {
       const token = getAccessToken()
@@ -128,12 +155,24 @@ export default function PipelinePage() {
     }
   }
 
+  const handleDelete = async () => {
+    if (!deleteTarget) return
+    try {
+      await fetch(`${API_URL}/api/pipelines/${deleteTarget.id}`, { method: "DELETE" })
+      setPipelines((prev) => prev.filter((p) => p.id !== deleteTarget.id))
+    } catch {
+      // ignore
+    } finally {
+      setDeleteTarget(null)
+    }
+  }
+
   return (
     <motion.div
       variants={containerVariants}
       initial="hidden"
       animate="show"
-      className="space-y-6 max-w-7xl mx-auto"
+      className="space-y-6 max-w-5xl mx-auto"
     >
       <motion.div variants={itemVariants} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="space-y-1">
@@ -155,67 +194,103 @@ export default function PipelinePage() {
         <Separator />
       </motion.div>
 
-      {/* Pipeline Cards */}
-      <motion.div variants={itemVariants} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      {/* Pipeline List */}
+      <div className="space-y-2">
         {pipelines.map((pipeline) => (
-          <Card
-            key={pipeline.id}
-            className="group cursor-pointer hover:border-pulse/30 transition-colors"
-            onClick={() => router.push(`/pipeline/${pipeline.id}`)}
-          >
-            <CardHeader className="pb-3">
-              <div className="flex items-start justify-between">
-                <div className="space-y-1 min-w-0 flex-1">
-                  <CardTitle className="text-sm font-semibold truncate">{pipeline.name}</CardTitle>
-                  <CardDescription className="text-xs line-clamp-2">
-                    {pipeline.description || "Tanpa deskripsi"}
-                  </CardDescription>
+          <motion.div key={pipeline.id} variants={itemVariants}>
+            <Card
+              className="group cursor-pointer border-border/40 hover:border-pulse/30 transition-all duration-200 py-0"
+              onClick={() => router.push(`/pipeline/${pipeline.id}`)}
+            >
+              <CardContent className="p-0">
+                <div className="flex items-stretch">
+                  {/* Main content */}
+                  <div className="flex-1 min-w-0 px-4 py-3.5">
+                    <div className="flex items-center gap-3">
+                      {/* Status icon */}
+                      <div className="shrink-0 mt-0.5">
+                        <StatusIcon status={pipeline.status} />
+                      </div>
+
+                      {/* Name + description */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-sm font-semibold truncate">{pipeline.name}</h3>
+                          <StatusBadge status={pipeline.status} />
+                        </div>
+                        <p className="text-xs text-muted-foreground truncate mt-0.5">
+                          {pipeline.description || "Tanpa deskripsi"}
+                        </p>
+                      </div>
+
+                      {/* Meta */}
+                      <div className="hidden sm:flex items-center gap-4 text-xs text-muted-foreground shrink-0">
+                        <div className="text-center">
+                          <p className="font-mono text-foreground">{pipeline.step_count}</p>
+                          <p className="text-[10px]">steps</p>
+                        </div>
+                        <div className="text-right min-w-[100px]">
+                          <p className="font-mono text-[10px]">
+                            {pipeline.last_run_at
+                              ? new Date(pipeline.last_run_at).toLocaleString("id-ID", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })
+                              : "—"}
+                          </p>
+                          <p className="text-[10px]">terakhir jalan</p>
+                        </div>
+                      </div>
+
+                      {/* Actions */}
+                      <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="size-8 text-muted-foreground hover:text-foreground"
+                          onClick={() => router.push(`/pipeline/${pipeline.id}`)}
+                        >
+                          <EyeOpenIcon className="size-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="size-8 text-muted-foreground hover:text-foreground"
+                          onClick={() => router.push(`/pipeline/builder?id=${pipeline.id}`)}
+                        >
+                          <Pencil1Icon className="size-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="size-8 text-muted-foreground hover:text-red-400"
+                          onClick={() => setDeleteTarget(pipeline)}
+                        >
+                          <TrashIcon className="size-3.5" />
+                        </Button>
+                        <div className="w-px h-5 bg-border/60 mx-1" />
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8 text-xs"
+                          onClick={(e) => handleRun(pipeline.id, e)}
+                          disabled={runningId === pipeline.id || pipeline.step_count === 0}
+                        >
+                          {runningId === pipeline.id ? (
+                            <ReloadIcon className="size-3 mr-1 animate-spin" />
+                          ) : (
+                            <PlayIcon className="size-3 mr-1" />
+                          )}
+                          Run
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <StatusIcon status={pipeline.status} />
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="grid grid-cols-2 gap-3 text-xs">
-                <div>
-                  <p className="text-muted-foreground mb-0.5">Langkah</p>
-                  <p className="font-mono">{pipeline.step_count} step</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground mb-0.5">Status</p>
-                  <StatusBadge status={pipeline.status} />
-                </div>
-                <div className="col-span-2">
-                  <p className="text-muted-foreground mb-0.5">Terakhir dijalankan</p>
-                  <p className="font-mono text-[10px]">
-                    {pipeline.last_run_at
-                      ? new Date(pipeline.last_run_at).toLocaleString("id-ID")
-                      : "Belum pernah"}
-                  </p>
-                </div>
-              </div>
-              <Separator />
-              <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="flex-1"
-                  onClick={() => handleRun(pipeline.id)}
-                  disabled={runningId === pipeline.id || pipeline.step_count === 0}
-                >
-                  {runningId === pipeline.id ? (
-                    <ReloadIcon className="size-3 mr-1 animate-spin" />
-                  ) : (
-                    <PlayIcon className="size-3 mr-1" />
-                  )}
-                  Jalankan
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </motion.div>
         ))}
 
         {pipelines.length === 0 && !loading && (
-          <div className="col-span-full">
+          <motion.div variants={itemVariants}>
             <Card className="border-dashed">
               <CardContent className="flex flex-col items-center justify-center py-12">
                 <div className="size-12 rounded-full bg-muted flex items-center justify-center mb-4">
@@ -233,9 +308,9 @@ export default function PipelinePage() {
                 </Button>
               </CardContent>
             </Card>
-          </div>
+          </motion.div>
         )}
-      </motion.div>
+      </div>
 
       {loading && (
         <div className="flex items-center justify-center py-12">
@@ -245,16 +320,34 @@ export default function PipelinePage() {
 
       {/* Info Banner */}
       <motion.div variants={itemVariants}>
-        <Card className="border-pulse/20 bg-pulse/5">
-          <CardContent className="flex items-start gap-3 py-4">
+        <Card className="border-pulse/20 bg-pulse/5 py-3">
+          <CardContent className="flex items-start gap-3 py-0">
             <RocketIcon className="size-4 text-pulse mt-0.5 shrink-0" />
-            <div className="text-sm text-muted-foreground">
+            <div className="text-xs text-muted-foreground">
               <span className="font-medium text-foreground">Pipeline Builder: </span>
               Buat langkah transformasi SQL/Python, generate DAG Airflow otomatis, dan jalankan dari sini.
             </div>
           </CardContent>
         </Card>
       </motion.div>
+
+      {/* Delete Confirmation */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Hapus Pipeline</AlertDialogTitle>
+            <AlertDialogDescription>
+              Pipeline <span className="font-mono font-medium text-foreground">{deleteTarget?.name}</span> akan dihapus permanen beserta semua langkah transformasinya.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Batal</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Hapus
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </motion.div>
   )
 }

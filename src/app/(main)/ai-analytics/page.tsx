@@ -6,31 +6,34 @@ import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { Input } from "@/components/ui/input"
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { PageSkeletonWrapper } from "@/components/skeletons/page-skeleton-wrapper"
 import { AiAnalyticsSkeleton } from "@/components/skeletons/ai-analytics-skeleton"
 import {
   LightningBoltIcon,
-  CheckCircledIcon,
   CrossCircledIcon,
   TrashIcon,
-  ChevronLeftIcon,
-  ChevronRightIcon,
   PersonIcon,
   PaperPlaneIcon,
   ReloadIcon,
+  BarChartIcon,
+  Pencil1Icon,
+  EyeOpenIcon,
 } from "@radix-ui/react-icons"
 import { motion, AnimatePresence, type Variants } from "motion/react"
 import * as React from "react"
 import Markdown from "react-markdown"
 import { embedDashboard } from "@superset-ui/embedded-sdk"
 import { API_URL } from "@/lib/constants"
+import { getAccessToken } from "@/lib/auth"
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -166,8 +169,6 @@ export default function AiAnalyticsPage() {
   const [loading, setLoading] = React.useState(true)
   const [deleteTarget, setDeleteTarget] = React.useState<DashboardItem | null>(null)
   const [deleting, setDeleting] = React.useState(false)
-  const [currentPage, setCurrentPage] = React.useState(1)
-  const itemsPerPage = 6
 
   // Chat state
   const [chatInput, setChatInput] = React.useState("")
@@ -212,10 +213,14 @@ export default function AiAnalyticsPage() {
     setChatInput("")
     setIsSending(true)
 
+    const token = getAccessToken()
+    const headers: Record<string, string> = { "Content-Type": "application/json" }
+    if (token) headers["Authorization"] = `Bearer ${token}`
+
     try {
-      const res = await fetch(`${API_URL}/api/ai/chat`, {
+      const res = await fetch(`${API_URL}/api/ai/chat/stream`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({
           message: userMessage.content,
           dashboard_uuid: selectedDashboard.superset_uuid || "",
@@ -224,22 +229,44 @@ export default function AiAnalyticsPage() {
         }),
       })
 
-      if (res.ok) {
-        const data = await res.json()
-        const assistantMessage: ChatMessage = {
-          role: "assistant",
-          content: data.response,
-          timestamp: new Date(),
-        }
-        setChatMessages((prev) => [...prev, assistantMessage])
-      } else {
-        const errData = await res.json()
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({ detail: "Gagal mengambil respons dari AI" }))
         const errorMessage: ChatMessage = {
           role: "assistant",
           content: `Error: ${errData.detail || "Gagal mengambil respons dari AI"}`,
           timestamp: new Date(),
         }
         setChatMessages((prev) => [...prev, errorMessage])
+        setIsSending(false)
+        return
+      }
+
+      setChatMessages((prev) => [...prev, { role: "assistant", content: "", timestamp: new Date() }])
+
+      const reader = res.body!.getReader()
+      const decoder = new TextDecoder()
+      let accumulated = ""
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        const raw = decoder.decode(value, { stream: true })
+        const lines = raw.split("\n")
+        for (const line of lines) {
+          if (line.startsWith("data: ")) {
+            const chunk = line.slice(6)
+            accumulated += chunk
+            setChatMessages((prev) => {
+              const updated = [...prev]
+              updated[updated.length - 1] = {
+                role: "assistant",
+                content: accumulated,
+                timestamp: new Date(),
+              }
+              return updated
+            })
+          }
+        }
       }
     } catch {
       const errorMessage: ChatMessage = {
@@ -254,10 +281,13 @@ export default function AiAnalyticsPage() {
   }
 
   const handleClearHistory = async () => {
+    const token = getAccessToken()
+    const headers: Record<string, string> = { "Content-Type": "application/json" }
+    if (token) headers["Authorization"] = `Bearer ${token}`
     try {
       await fetch(`${API_URL}/api/ai/chat/clear`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({ session_id: sessionId }),
       })
     } catch {
@@ -309,93 +339,91 @@ export default function AiAnalyticsPage() {
         <Separator />
       </motion.div>
 
-      {/* Dashboard Selector */}
-      {(() => {
-        const totalPages = Math.ceil(dashboards.length / itemsPerPage)
-        const paginatedDashboards = dashboards.slice(
-          (currentPage - 1) * itemsPerPage,
-          currentPage * itemsPerPage
-        )
-        return (
-          <>
-            <motion.div variants={itemVariants} className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              {paginatedDashboards.map((dashboard) => (
-                <Card
-                  key={dashboard.id}
-                  className={`group cursor-pointer transition-all duration-200 ${
-                    selectedDashboard?.id === dashboard.id
-                      ? "border-pulse/50 bg-pulse/5"
-                      : "hover:border-muted-foreground/20"
-                  }`}
-                  onClick={() => {
-                    setSelectedDashboard(dashboard)
-                    setChatMessages([])
-                  }}
-                >
-                  <CardHeader className="pb-3">
-                    <div className="flex items-start justify-between">
-                      <div className="space-y-1 min-w-0 flex-1">
-                        <CardTitle className="text-sm">{dashboard.title}</CardTitle>
-                        <CardDescription className="text-xs line-clamp-2">{dashboard.description}</CardDescription>
-                      </div>
-                      <div className="flex items-center gap-1.5 shrink-0 ml-2">
-                        <Badge
-                          variant={dashboard.status === "active" ? "success" : "secondary"}
-                        >
-                          {dashboard.status}
-                        </Badge>
-                        {!dashboard.is_default && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="size-6 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              setDeleteTarget(dashboard)
-                            }}
-                          >
-                            <TrashIcon className="size-3" />
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
-                      Diperbarui {new Date(dashboard.updated_at).toLocaleDateString("id-ID")}
-                    </p>
-                  </CardContent>
-                </Card>
-              ))}
-            </motion.div>
-            {totalPages > 1 && (
-              <motion.div variants={itemVariants} className="flex items-center justify-center gap-2 pt-2">
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="size-8"
-                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                  disabled={currentPage === 1}
-                >
-                  <ChevronLeftIcon className="size-4" />
-                </Button>
-                <span className="text-xs text-muted-foreground">
-                  {currentPage} / {totalPages}
-                </span>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="size-8"
-                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={currentPage === totalPages}
-                >
-                  <ChevronRightIcon className="size-4" />
-                </Button>
-              </motion.div>
-            )}
-          </>
-        )
-      })()}
+      {/* Dashboard Selector - Elongated Cards */}
+      <motion.div variants={itemVariants} className="space-y-2">
+        {dashboards.map((dashboard) => (
+          <Card
+            key={dashboard.id}
+            className={`group cursor-pointer transition-all duration-200 ${
+              selectedDashboard?.id === dashboard.id
+                ? "border-pulse/50 bg-pulse/5 shadow-sm"
+                : "hover:border-muted-foreground/20 hover:shadow-sm"
+            }`}
+            onClick={() => {
+              setSelectedDashboard(dashboard)
+              setChatMessages([])
+            }}
+          >
+            <CardContent className="px-3 py-2">
+              <div className="flex items-center gap-3">
+                <div className={`size-10 rounded-lg flex items-center justify-center shrink-0 ${
+                  selectedDashboard?.id === dashboard.id
+                    ? "bg-pulse/15 text-pulse"
+                    : "bg-muted text-muted-foreground"
+                }`}>
+                  <BarChartIcon className="size-5" />
+                </div>
+
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <h3 className="text-sm font-medium truncate">{dashboard.title}</h3>
+                    <Badge
+                      variant={dashboard.status === "active" ? "success" : "secondary"}
+                      className="shrink-0"
+                    >
+                      {dashboard.status}
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {dashboard.description || "Tidak ada deskripsi"}
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-1 shrink-0">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-8 text-muted-foreground hover:text-foreground"
+                    title="Lihat detail"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setSelectedDashboard(dashboard)
+                      setChatMessages([])
+                    }}
+                  >
+                    <EyeOpenIcon className="size-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-8 text-muted-foreground hover:text-foreground"
+                    title="Edit dashboard"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                    }}
+                  >
+                    <Pencil1Icon className="size-4" />
+                  </Button>
+                  {!dashboard.is_default && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="size-8 text-muted-foreground hover:text-destructive"
+                      title="Hapus"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setDeleteTarget(dashboard)
+                      }}
+                    >
+                      <TrashIcon className="size-4" />
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </motion.div>
 
       {/* Main Content: Two Columns */}
       <motion.div variants={itemVariants} className="grid grid-cols-1 lg:grid-cols-5 gap-4">
@@ -583,22 +611,20 @@ export default function AiAnalyticsPage() {
       </motion.div>
 
       {/* Delete Confirmation Dialog */}
-      <Dialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null) }}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Hapus Dashboard</DialogTitle>
-            <DialogDescription>
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null) }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Hapus Dashboard</AlertDialogTitle>
+            <AlertDialogDescription>
               Apakah Anda yakin ingin menghapus <span className="font-medium text-foreground">{deleteTarget?.title}</span>? Tindakan ini tidak dapat dibatalkan.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteTarget(null)} disabled={deleting}>
-              Batal
-            </Button>
-            <Button
-              variant="destructive"
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Batal</AlertDialogCancel>
+            <AlertDialogAction
               onClick={handleDelete}
               disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {deleting ? (
                 <>
@@ -611,10 +637,10 @@ export default function AiAnalyticsPage() {
                   Hapus
                 </>
               )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </motion.div>
     </PageSkeletonWrapper>
   )
