@@ -46,7 +46,7 @@ const itemVariants = {
   show: { opacity: 1, y: 0, transition: { duration: 0.3, ease: "easeOut" } },
 } satisfies Variants
 
-type PipelineStatus = "draft" | "active" | "running" | "success" | "failed"
+type PipelineStatus = "draft" | "active" | "running" | "queued" | "success" | "failed"
 
 interface Pipeline {
   id: number
@@ -63,6 +63,7 @@ function StatusDot({ status }: { status: PipelineStatus }) {
     draft: "bg-muted-foreground/40",
     active: "bg-emerald-500",
     running: "bg-amber-500 animate-pulse",
+    queued: "bg-slate-400 animate-pulse",
     success: "bg-emerald-500",
     failed: "bg-red-400",
   }
@@ -76,6 +77,7 @@ function StatusBadge({ status }: { status: PipelineStatus }) {
     draft: "bg-muted text-muted-foreground border-border/50",
     active: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
     running: "bg-amber-500/10 text-amber-400 border-amber-500/20",
+    queued: "bg-slate-400/10 text-slate-400 border-slate-400/20",
     success: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
     failed: "bg-red-500/10 text-red-400 border-red-500/20",
   }
@@ -94,6 +96,8 @@ function StatusIcon({ status }: { status: PipelineStatus }) {
       return <CrossCircledIcon className="size-4 text-red-400" />
     case "running":
       return <ReloadIcon className="size-4 text-amber-500 animate-spin" />
+    case "queued":
+      return <ClockIcon className="size-4 text-slate-400 animate-pulse" />
     default:
       return <ClockIcon className="size-4 text-muted-foreground" />
   }

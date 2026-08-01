@@ -127,12 +127,15 @@ export function StepEditor({ steps, onChange, tables }: StepEditorProps) {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label className="text-xs">Source Table (opsional)</Label>
-                <Select value={step.source_table} onValueChange={(v) => updateStep(step.id, "source_table", v ?? "")}>
+                <Label className="text-xs">Source Table (raw only, opsional)</Label>
+                <Select value={step.source_table || "__none__"} onValueChange={(v) => updateStep(step.id, "source_table", v === "__none__" || !v ? "" : v)}>
                   <SelectTrigger className="w-full h-8">
-                    <SelectValue placeholder="Pilih source..." />
+                    <span className="truncate">
+                      {step.source_table || "Tidak pakai source table"}
+                    </span>
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="__none__">Tidak pakai source table</SelectItem>
                     {tables.map((t) => (
                       <SelectItem key={t.full_name} value={t.full_name}>{t.full_name}</SelectItem>
                     ))}

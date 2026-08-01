@@ -65,6 +65,7 @@ function StatusBadge({ status }: { status: string }) {
     draft: "bg-muted text-muted-foreground",
     active: "bg-emerald-500/15 text-emerald-500",
     running: "bg-amber-500/15 text-amber-500",
+    queued: "bg-slate-400/15 text-slate-400",
     success: "bg-emerald-500/15 text-emerald-500",
     failed: "bg-red-500/15 text-red-400",
   }
@@ -83,6 +84,8 @@ function StatusIcon({ status }: { status: string }) {
       return <CrossCircledIcon className="size-4 text-red-400" />
     case "running":
       return <ReloadIcon className="size-4 text-amber-500 animate-spin" />
+    case "queued":
+      return <ClockIcon className="size-4 text-slate-400 animate-pulse" />
     default:
       return <ClockIcon className="size-4 text-muted-foreground" />
   }

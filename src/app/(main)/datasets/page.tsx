@@ -74,6 +74,7 @@ function formatNumber(n: number): string {
 
 export default function DatasetsPage() {
   const [datasets, setDatasets] = React.useState<DatasetTable[]>([])
+  const [martDatasets, setMartDatasets] = React.useState<DatasetTable[]>([])
   const [loading, setLoading] = React.useState(true)
   const [uploading, setUploading] = React.useState(false)
   const [dragOver, setDragOver] = React.useState(false)
@@ -87,6 +88,7 @@ export default function DatasetsPage() {
 
   React.useEffect(() => {
     fetchDatasets()
+    fetchMartDatasets()
   }, [])
 
   const fetchDatasets = async () => {
@@ -101,6 +103,19 @@ export default function DatasetsPage() {
       // ignore
     } finally {
       setLoading(false)
+    }
+  }
+
+  const fetchMartDatasets = async () => {
+    try {
+      const token = getAccessToken()
+      const res = await fetch(`${API_URL}/api/datasets/mart`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+      const data = await res.json()
+      setMartDatasets(data)
+    } catch {
+      // ignore
     }
   }
 
@@ -314,6 +329,65 @@ export default function DatasetsPage() {
                         >
                           <TrashIcon className="size-3.5" />
                         </Button>
+                      </div>
+                      <div className="flex items-center gap-3 mt-3 pt-3 border-t border-border/40">
+                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                          <RowsIcon className="size-3" />
+                          <span>{formatNumber(ds.row_count)} baris</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                          <ColumnsIcon className="size-3" />
+                          <span>{ds.column_count} kolom</span>
+                        </div>
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        <motion.div variants={itemVariants}>
+          <Card className="border-border/60">
+            <CardHeader className="pb-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <CardTitle className="text-base">Tabel di Schema Mart</CardTitle>
+                  <Badge variant="outline" className="text-[10px] font-mono px-1.5 py-0 bg-violet-500/10 text-violet-400 border-violet-500/20">
+                    read-only
+                  </Badge>
+                </div>
+                <span className="text-xs text-muted-foreground font-mono">{martDatasets.length} tabel</span>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {martDatasets.length === 0 ? (
+                <div className="text-center py-8">
+                  <TableIcon className="size-8 text-muted-foreground mx-auto mb-3" />
+                  <p className="text-sm text-muted-foreground">
+                    Belum ada data mart. Jalankan pipeline untuk menghasilkan tabel mart.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {martDatasets.map((ds) => (
+                    <motion.div
+                      key={ds.full_name}
+                      variants={itemVariants}
+                      className="border border-border/60 rounded-lg p-4 group hover:border-violet-500/30 transition-all cursor-pointer"
+                      onClick={() => fetchDetail(ds)}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="size-9 rounded-lg bg-violet-500/10 flex items-center justify-center shrink-0">
+                            <TableIcon className="size-4 text-violet-400" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium truncate">{ds.table_name}</p>
+                            <p className="text-xs text-muted-foreground font-mono">{ds.full_name}</p>
+                          </div>
+                        </div>
                       </div>
                       <div className="flex items-center gap-3 mt-3 pt-3 border-t border-border/40">
                         <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
