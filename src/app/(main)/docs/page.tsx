@@ -118,7 +118,7 @@ export default function DocsPage() {
       variants={containerVariants}
       initial="hidden"
       animate="show"
-      className="space-y-8 max-w-4xl mx-auto"
+      className="space-y-8 max-w-7xl mx-auto"
     >
       {/* Header */}
       <motion.div variants={itemVariants} className="space-y-2">

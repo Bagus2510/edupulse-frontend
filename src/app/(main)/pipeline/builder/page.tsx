@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/select"
 import { DomainSelect } from "@/components/ui/domain-select"
 import { InlineSelect } from "@/components/ui/inline-select"
+import { PipelineBuilderSkeleton } from "@/components/skeletons/pipeline-builder-skeleton"
 
 const SCHEDULE_OPTIONS = [
   { value: "manual", label: "Manual", cron: "" },
@@ -184,11 +185,7 @@ export default function PipelineBuilderPage() {
   }
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="size-8 border-2 border-pulse/20 border-t-pulse rounded-full animate-spin" />
-      </div>
-    )
+    return <PipelineBuilderSkeleton />
   }
 
   return (
@@ -196,7 +193,7 @@ export default function PipelineBuilderPage() {
       variants={containerVariants}
       initial="hidden"
       animate="show"
-      className="space-y-6 max-w-4xl mx-auto"
+      className="space-y-6 max-w-7xl mx-auto"
     >
       <motion.div variants={itemVariants} className="flex items-center gap-3">
         <Button variant="ghost" size="icon" className="size-8" onClick={() => router.push("/pipeline")}>

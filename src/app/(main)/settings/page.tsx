@@ -57,7 +57,7 @@ export default function SettingsPage() {
       variants={containerVariants}
       initial="hidden"
       animate="show"
-      className="space-y-6 max-w-2xl mx-auto"
+      className="space-y-6 max-w-7xl mx-auto"
     >
       {/* Header */}
       <motion.div variants={itemVariants}>

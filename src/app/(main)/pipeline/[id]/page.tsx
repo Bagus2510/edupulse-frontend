@@ -31,6 +31,7 @@ import {
 import { motion } from "motion/react"
 import { API_URL } from "@/lib/constants"
 import { getAccessToken } from "@/lib/auth"
+import { PipelineDetailSkeleton } from "@/components/skeletons/pipeline-detail-skeleton"
 
 interface PipelineStep {
   id: number
@@ -171,11 +172,7 @@ export default function PipelineDetailPage() {
   }
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="size-8 border-2 border-pulse/20 border-t-pulse rounded-full animate-spin" />
-      </div>
-    )
+    return <PipelineDetailSkeleton />
   }
 
   if (!pipeline) return null
@@ -185,7 +182,7 @@ export default function PipelineDetailPage() {
     <motion.div
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      className="space-y-6 max-w-4xl mx-auto"
+      className="space-y-6 max-w-7xl mx-auto"
     >
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="icon" className="size-8" onClick={() => router.push("/pipeline")}>

@@ -2,7 +2,7 @@ import { Skeleton, SkeletonLine, SkeletonCard } from "./primitives"
 
 export function SettingsSkeleton() {
   return (
-    <div className="space-y-6 max-w-2xl mx-auto">
+    <div className="space-y-6 max-w-7xl mx-auto">
       {/* Header */}
       <div className="space-y-1.5">
         <Skeleton className="h-7 w-28" />

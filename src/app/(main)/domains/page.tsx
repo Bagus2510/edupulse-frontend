@@ -36,6 +36,7 @@ import { motion, type Variants } from "motion/react"
 import * as React from "react"
 import { API_URL } from "@/lib/constants"
 import { getAccessToken } from "@/lib/auth"
+import { DomainsSkeleton } from "@/components/skeletons/domains-skeleton"
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -246,7 +247,7 @@ export default function DomainsPage() {
       variants={containerVariants}
       initial="hidden"
       animate="show"
-      className="space-y-6 max-w-5xl mx-auto"
+      className="space-y-6 max-w-7xl mx-auto"
     >
       <motion.div variants={itemVariants} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="space-y-1">
@@ -269,11 +270,7 @@ export default function DomainsPage() {
       </motion.div>
 
       {loading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="h-32 rounded-lg bg-muted animate-pulse" />
-          ))}
-        </div>
+        <DomainsSkeleton />
       ) : domains.length === 0 ? (
         <motion.div variants={itemVariants}>
           <Card className="border-border/40">

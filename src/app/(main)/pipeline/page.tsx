@@ -219,7 +219,7 @@ export default function PipelinePage() {
       variants={containerVariants}
       initial="hidden"
       animate="show"
-      className="space-y-6 max-w-5xl mx-auto"
+      className="space-y-6 max-w-7xl mx-auto"
     >
       <motion.div variants={itemVariants} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="space-y-1">

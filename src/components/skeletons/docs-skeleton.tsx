@@ -2,7 +2,7 @@ import { Skeleton, SkeletonLine, SkeletonCard, SkeletonHeader } from "./primitiv
 
 export function DocsSkeleton() {
   return (
-    <div className="space-y-8 max-w-4xl mx-auto">
+    <div className="space-y-8 max-w-7xl mx-auto">
       <SkeletonHeader />
 
       <Skeleton className="h-px w-full" />
