@@ -20,6 +20,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { DomainSelect } from "@/components/ui/domain-select"
+import { InlineSelect } from "@/components/ui/inline-select"
 
 const SCHEDULE_OPTIONS = [
   { value: "manual", label: "Manual", cron: "" },
@@ -51,6 +53,8 @@ export default function PipelineBuilderPage() {
   const [onFailureCallback, setOnFailureCallback] = React.useState("")
   const [scheduleOption, setScheduleOption] = React.useState("manual")
   const [customCron, setCustomCron] = React.useState("")
+  const [domainId, setDomainId] = React.useState<string>("")
+  const [domains, setDomains] = React.useState<{ id: number; name: string }[]>([])
   const [steps, setSteps] = React.useState<PipelineStep[]>([])
   const [tables, setTables] = React.useState<{ full_name: string }[]>([])
   const [saving, setSaving] = React.useState(false)
@@ -58,6 +62,7 @@ export default function PipelineBuilderPage() {
 
   React.useEffect(() => {
     fetchTables()
+    fetchDomains()
     if (editId) fetchPipeline(parseInt(editId))
   }, [editId])
 
@@ -74,6 +79,16 @@ export default function PipelineBuilderPage() {
     }
   }
 
+  const fetchDomains = async () => {
+    try {
+      const res = await fetch(`${API_URL}/api/domains`)
+      const data = await res.json()
+      setDomains(Array.isArray(data) ? data : [])
+    } catch {
+      setDomains([])
+    }
+  }
+
   const fetchPipeline = async (id: number) => {
     try {
       const res = await fetch(`${API_URL}/api/pipelines/${id}`)
@@ -82,6 +97,7 @@ export default function PipelineBuilderPage() {
       setDescription(data.description || "")
       setMaxActiveRuns(data.max_active_runs || 1)
       setOnFailureCallback(data.on_failure_callback || "")
+      setDomainId(data.domain_id ? String(data.domain_id) : "")
 
       // Restore schedule option
       const interval = data.schedule_interval || ""
@@ -130,6 +146,7 @@ export default function PipelineBuilderPage() {
         max_active_runs: maxActiveRuns,
         on_failure_callback: onFailureCallback.trim(),
         schedule_interval: getScheduleInterval(),
+        domain_id: domainId ? parseInt(domainId) : null,
         steps: steps.map((s, i) => ({
           name: s.name,
           source_table: s.source_table,
@@ -286,21 +303,13 @@ export default function PipelineBuilderPage() {
                 />
               </div>
               <div className="flex gap-2">
-                <Select
+                <InlineSelect
                   value={scheduleOption}
                   onValueChange={(val) => { if (val) setScheduleOption(val) }}
-                >
-                  <SelectTrigger className="h-9 w-[200px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {SCHEDULE_OPTIONS.map((opt) => (
-                      <SelectItem key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  options={SCHEDULE_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
+                  placeholder="Pilih jadwal"
+                  className="w-[200px]"
+                />
                 {scheduleOption === "custom" && (
                   <Input
                     value={customCron}
@@ -316,6 +325,25 @@ export default function PipelineBuilderPage() {
                 </p>
               )}
             </div>
+          </CardContent>
+        </Card>
+      </motion.div>
+
+      <motion.div variants={itemVariants}>
+        <Card className="border-border/60">
+          <CardHeader className="pb-4">
+            <CardTitle className="text-base">Domain</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-xs text-muted-foreground">
+              Pilih domain untuk mengelompokkan pipeline ini.
+            </p>
+            <DomainSelect
+              value={domainId}
+              onValueChange={(val) => setDomainId(val)}
+              domains={domains}
+              placeholder="Pilih domain (opsional)"
+            />
           </CardContent>
         </Card>
       </motion.div>

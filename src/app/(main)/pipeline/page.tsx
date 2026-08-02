@@ -22,6 +22,7 @@ import * as React from "react"
 import { useRouter } from "next/navigation"
 import { API_URL } from "@/lib/constants"
 import { getAccessToken } from "@/lib/auth"
+import { useDomain } from "@/lib/domain-context"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -55,6 +56,10 @@ interface Pipeline {
   status: PipelineStatus
   last_run_at: string | null
   step_count: number
+  schedule_interval: string | null
+  schedule_description: string
+  is_active: boolean
+  domain_id: number | null
   created_at: string
 }
 
@@ -105,6 +110,7 @@ function StatusIcon({ status }: { status: PipelineStatus }) {
 
 export default function PipelinePage() {
   const router = useRouter()
+  const { activeDomainId } = useDomain()
   const [pipelines, setPipelines] = React.useState<Pipeline[]>([])
   const [loading, setLoading] = React.useState(true)
   const [runningId, setRunningId] = React.useState<number | null>(null)
@@ -116,7 +122,7 @@ export default function PipelinePage() {
   React.useEffect(() => {
     fetchPipelines()
     return () => { if (pollRef.current) clearInterval(pollRef.current) }
-  }, [])
+  }, [activeDomainId])
 
   const startPolling = () => {
     if (pollRef.current) clearInterval(pollRef.current)
@@ -134,7 +140,10 @@ export default function PipelinePage() {
 
   const fetchPipelines = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/pipelines`)
+      const url = activeDomainId
+        ? `${API_URL}/api/pipelines?domain_id=${activeDomainId}`
+        : `${API_URL}/api/pipelines`
+      const res = await fetch(url)
       const data = await res.json()
       setPipelines(data)
     } catch {
@@ -171,6 +180,19 @@ export default function PipelinePage() {
       // ignore
     } finally {
       setDeleteTarget(null)
+    }
+  }
+
+  const toggleActive = async (id: number) => {
+    const token = getAccessToken()
+    try {
+      await fetch(`${API_URL}/api/pipelines/${id}/toggle-active`, {
+        method: "PATCH",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+      fetchPipelines()
+    } catch {
+      // ignore
     }
   }
 
@@ -242,6 +264,17 @@ export default function PipelinePage() {
                         <div className="flex items-center gap-2">
                           <h3 className="text-sm font-semibold truncate">{pipeline.name}</h3>
                           <StatusBadge status={pipeline.status} />
+                          {pipeline.schedule_description && pipeline.schedule_description !== "Manual" && (
+                            <Badge variant="outline" className="text-[10px] font-medium px-1.5 py-0 gap-1 bg-blue-500/10 text-blue-400 border-blue-500/20">
+                              <ClockIcon className="size-2.5" />
+                              {pipeline.schedule_description}
+                            </Badge>
+                          )}
+                          {!pipeline.is_active && (
+                            <Badge variant="outline" className="text-[10px] font-medium px-1.5 py-0 bg-muted text-muted-foreground border-border/50">
+                              Nonaktif
+                            </Badge>
+                          )}
                         </div>
                         <p className="text-xs text-muted-foreground truncate mt-0.5">
                           {pipeline.description || "Tanpa deskripsi"}
@@ -289,6 +322,23 @@ export default function PipelinePage() {
                           onClick={() => setDeleteTarget(pipeline)}
                         >
                           <TrashIcon className="size-3.5" />
+                        </Button>
+                        <div className="w-px h-5 bg-border/60 mx-1" />
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className={`size-8 ${pipeline.is_active ? "text-emerald-400 hover:text-emerald-300" : "text-muted-foreground hover:text-foreground"}`}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            toggleActive(pipeline.id)
+                          }}
+                          title={pipeline.is_active ? "Nonaktifkan" : "Aktifkan"}
+                        >
+                          {pipeline.is_active ? (
+                            <svg className="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                          ) : (
+                            <PlayIcon className="size-3.5" />
+                          )}
                         </Button>
                         <div className="w-px h-5 bg-border/60 mx-1" />
                         {pipeline.status === "running" ? (

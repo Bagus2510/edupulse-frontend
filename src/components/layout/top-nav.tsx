@@ -14,6 +14,9 @@ import {
   PersonIcon,
   LockClosedIcon,
   LightningBoltIcon,
+  TableIcon,
+  LoopIcon,
+  GlobeIcon,
 } from "@radix-ui/react-icons"
 import { Button } from "@/components/ui/button"
 import {
@@ -42,6 +45,9 @@ const navItems = [
   { label: "Analitik", href: "/dashboard", icon: BarChartIcon },
   { label: "Analisis AI", href: "/ai-analytics", icon: LightningBoltIcon },
   { label: "Pipeline", href: "/pipeline", icon: RocketIcon },
+  { label: "Dataset", href: "/datasets", icon: TableIcon },
+  { label: "Alur Data", href: "/lineage", icon: LoopIcon },
+  { label: "Domain", href: "/domains", icon: GlobeIcon },
   { label: "Dokumentasi", href: "/docs", icon: FileTextIcon },
   { label: "Pengaturan", href: "/settings", icon: GearIcon },
 ]

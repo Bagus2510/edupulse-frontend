@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent } from "@/components/ui/card"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { InlineSelect } from "@/components/ui/inline-select"
 import { FieldGuide } from "./field-guide"
 
 export interface PipelineStep {
@@ -113,34 +114,30 @@ export function StepEditor({ steps, onChange, tables }: StepEditorProps) {
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs">Tipe Query</Label>
-                <Select value={step.query_type} onValueChange={(v) => v && updateStep(step.id, "query_type", v)}>
-                  <SelectTrigger className="w-full h-8">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="sql">SQL</SelectItem>
-                    <SelectItem value="python">Python</SelectItem>
-                  </SelectContent>
-                </Select>
+                <InlineSelect
+                  value={step.query_type}
+                  onValueChange={(v) => { if (v) updateStep(step.id, "query_type", v) }}
+                  options={[
+                    { value: "sql", label: "SQL" },
+                    { value: "python", label: "Python" },
+                  ]}
+                  placeholder="Pilih tipe"
+                />
               </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label className="text-xs">Source Table (raw only, opsional)</Label>
-                <Select value={step.source_table || "__none__"} onValueChange={(v) => updateStep(step.id, "source_table", v === "__none__" || !v ? "" : v)}>
-                  <SelectTrigger className="w-full h-8">
-                    <span className="truncate">
-                      {step.source_table || "Tidak pakai source table"}
-                    </span>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none__">Tidak pakai source table</SelectItem>
-                    {tables.map((t) => (
-                      <SelectItem key={t.full_name} value={t.full_name}>{t.full_name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <InlineSelect
+                  value={step.source_table || "__none__"}
+                  onValueChange={(v) => updateStep(step.id, "source_table", v === "__none__" || !v ? "" : v)}
+                  options={[
+                    { value: "__none__", label: "Tidak pakai source table" },
+                    ...tables.map((t) => ({ value: t.full_name, label: t.full_name })),
+                  ]}
+                  placeholder="Pilih source table"
+                />
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs">Destination Table (opsional)</Label>

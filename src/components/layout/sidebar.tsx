@@ -11,8 +11,11 @@ import {
   FileTextIcon,
   LightningBoltIcon,
   TableIcon,
+  LoopIcon,
+  GlobeIcon,
 } from "@radix-ui/react-icons"
 import { Separator } from "@/components/ui/separator"
+import { DomainSwitcher } from "./domain-switcher"
 
 const navItems = [
   {
@@ -41,6 +44,16 @@ const navItems = [
     icon: TableIcon,
   },
   {
+    label: "Alur Data",
+    href: "/lineage",
+    icon: LoopIcon,
+  },
+  {
+    label: "Domain",
+    href: "/domains",
+    icon: GlobeIcon,
+  },
+  {
     label: "Dokumentasi",
     href: "/docs",
     icon: FileTextIcon,
@@ -66,7 +79,11 @@ export function Sidebar() {
         <span className="text-sm font-semibold tracking-tight">EduPulse</span>
       </div>
 
-      <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto no-scrollbar">
+      <div className="px-3 pt-3 pb-1 shrink-0">
+        <DomainSwitcher />
+      </div>
+
+      <nav className="flex-1 px-3 py-2 space-y-1 overflow-y-auto no-scrollbar">
         {navItems.map((item) => {
           const isActive = pathname === item.href
           return (

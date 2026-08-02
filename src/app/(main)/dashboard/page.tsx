@@ -5,8 +5,9 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { FormField } from "@/components/ui/form-field"
+import { DomainSelect } from "@/components/ui/domain-select"
+import { InlineSelect } from "@/components/ui/inline-select"
 import {
   Dialog,
   DialogContent,
@@ -39,11 +40,13 @@ import {
   Pencil1Icon,
   EyeOpenIcon,
   CrossCircledIcon,
+  OpenInNewWindowIcon,
 } from "@radix-ui/react-icons"
 import { motion, type Variants } from "motion/react"
 import * as React from "react"
 import { embedDashboard } from "@superset-ui/embedded-sdk"
 import { API_URL } from "@/lib/constants"
+import { useDomain } from "@/lib/domain-context"
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -65,68 +68,10 @@ interface DashboardItem {
   superset_uuid: string | null
   status: string
   is_default: boolean
+  domain_id: number | null
+  dependency_count: number
   created_at: string
   updated_at: string
-}
-
-function MiniBarChart() {
-  const bars = [40, 65, 45, 80, 55, 70, 35, 90, 60, 75, 50, 85]
-  return (
-    <div className="flex items-end gap-1 h-16">
-      {bars.map((height, i) => (
-        <div
-          key={i}
-          className="flex-1 bg-pulse/20 rounded-t-sm hover:bg-pulse/40 transition-colors"
-          style={{ height: `${height}%` }}
-        />
-      ))}
-    </div>
-  )
-}
-
-function MiniLineChart() {
-  return (
-    <svg className="w-full h-16" viewBox="0 0 200 60" fill="none">
-      <defs>
-        <linearGradient id="lineGrad" x1="0" y1="0" x2="0" y2="60" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="var(--pulse)" stopOpacity="0.3" />
-          <stop offset="100%" stopColor="var(--pulse)" stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      <path
-        d="M0 45 L20 38 L40 42 L60 30 L80 35 L100 22 L120 28 L140 18 L160 25 L180 15 L200 20"
-        stroke="var(--pulse)"
-        strokeWidth="2"
-        fill="none"
-      />
-      <path
-        d="M0 45 L20 38 L40 42 L60 30 L80 35 L100 22 L120 28 L140 18 L160 25 L180 15 L200 20 L200 60 L0 60 Z"
-        fill="url(#lineGrad)"
-      />
-    </svg>
-  )
-}
-
-function MiniDonut() {
-  return (
-    <svg className="size-16" viewBox="0 0 36 36">
-      <circle cx="18" cy="18" r="15.9" fill="none" stroke="var(--muted)" strokeWidth="3" />
-      <circle
-        cx="18"
-        cy="18"
-        r="15.9"
-        fill="none"
-        stroke="var(--pulse)"
-        strokeWidth="3"
-        strokeDasharray="68 32"
-        strokeDashoffset="25"
-        className="transition-all duration-1000"
-      />
-      <text x="18" y="19" textAnchor="middle" className="fill-foreground text-[6px] font-bold font-mono">
-        68%
-      </text>
-    </svg>
-  )
 }
 
 function EmbeddedDashboard({ dashboardUuid, title }: { dashboardUuid: string; title: string }) {
@@ -205,14 +150,6 @@ function EmbeddedDashboard({ dashboardUuid, title }: { dashboardUuid: string; ti
                   <div className="size-2 rounded-full bg-muted animate-pulse" />
                   <div className="h-2.5 w-36 bg-muted rounded animate-pulse" />
                 </div>
-                <div className="grid grid-cols-3 gap-3 mt-2">
-                  {Array.from({ length: 3 }).map((_, i) => (
-                    <div key={i} className="p-3 rounded-lg border border-border/30 text-center space-y-2">
-                      <div className="h-16 w-full bg-muted rounded animate-pulse" />
-                      <div className="h-2 w-20 bg-muted rounded animate-pulse mx-auto" />
-                    </div>
-                  ))}
-                </div>
               </div>
             </div>
           </div>
@@ -237,32 +174,132 @@ function EmbeddedDashboard({ dashboardUuid, title }: { dashboardUuid: string; ti
   )
 }
 
+function DashboardFormFields({
+  title,
+  onTitleChange,
+  description,
+  onDescriptionChange,
+  uuid,
+  onUuidChange,
+  domainId,
+  onDomainChange,
+  domains,
+  status,
+  onStatusChange,
+  showStatus,
+}: {
+  title: string
+  onTitleChange: (v: string) => void
+  description: string
+  onDescriptionChange: (v: string) => void
+  uuid: string
+  onUuidChange: (v: string) => void
+  domainId: string
+  onDomainChange: (v: string) => void
+  domains: { id: number; name: string }[]
+  status?: string
+  onStatusChange?: (v: string) => void
+  showStatus?: boolean
+}) {
+  return (
+    <div className="space-y-4">
+      <FormField label="Judul Dashboard" htmlFor="dash-title" required>
+        <Input
+          id="dash-title"
+          placeholder="Revenue Analysis"
+          value={title}
+          onChange={(e) => onTitleChange(e.target.value)}
+        />
+      </FormField>
+
+      <FormField label="Deskripsi" htmlFor="dash-desc">
+        <Input
+          id="dash-desc"
+          placeholder="Monthly revenue trends and forecasts"
+          value={description}
+          onChange={(e) => onDescriptionChange(e.target.value)}
+        />
+      </FormField>
+
+      <FormField
+        label="Superset Dashboard UUID"
+        htmlFor="dash-uuid"
+        required
+        hint="UUID dari Apache Superset untuk embed dashboard"
+      >
+        <Input
+          id="dash-uuid"
+          placeholder="a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+          value={uuid}
+          onChange={(e) => onUuidChange(e.target.value)}
+          className="font-mono text-xs"
+        />
+      </FormField>
+
+      {showStatus && (
+        <FormField label="Status" htmlFor="dash-status">
+          <InlineSelect
+            value={status || "active"}
+            onValueChange={(v) => onStatusChange?.(v || "active")}
+            options={[
+              { value: "active", label: "Active" },
+              { value: "pending", label: "Pending" },
+              { value: "error", label: "Error" },
+            ]}
+            placeholder="Pilih status"
+          />
+        </FormField>
+      )}
+
+      <FormField label="Domain" hint="Kelompokkan dashboard ke domain tertentu">
+        <DomainSelect
+          value={domainId}
+          onValueChange={onDomainChange}
+          domains={domains}
+          placeholder="Tanpa domain"
+        />
+      </FormField>
+    </div>
+  )
+}
+
 export default function DashboardPage() {
+  const { activeDomainId } = useDomain()
   const [dashboards, setDashboards] = React.useState<DashboardItem[]>([])
   const [selectedDashboard, setSelectedDashboard] = React.useState<DashboardItem | null>(null)
   const [dialogOpen, setDialogOpen] = React.useState(false)
   const [detailOpen, setDetailOpen] = React.useState(false)
   const [detailDashboard, setDetailDashboard] = React.useState<DashboardItem | null>(null)
-  const [newTitle, setNewTitle] = React.useState("")
-  const [newDescription, setNewDescription] = React.useState("")
-  const [newUuid, setNewUuid] = React.useState("")
+  const [domains, setDomains] = React.useState<{ id: number; name: string }[]>([])
   const [loading, setLoading] = React.useState(true)
   const [deleteTarget, setDeleteTarget] = React.useState<DashboardItem | null>(null)
   const [deleting, setDeleting] = React.useState(false)
   const [editTarget, setEditTarget] = React.useState<DashboardItem | null>(null)
+  const [saving, setSaving] = React.useState(false)
+  const [expandOpen, setExpandOpen] = React.useState(false)
+
+  const [newTitle, setNewTitle] = React.useState("")
+  const [newDescription, setNewDescription] = React.useState("")
+  const [newUuid, setNewUuid] = React.useState("")
+  const [newDomainId, setNewDomainId] = React.useState<string>("")
+
   const [editTitle, setEditTitle] = React.useState("")
   const [editDescription, setEditDescription] = React.useState("")
   const [editUuid, setEditUuid] = React.useState("")
+  const [editDomainId, setEditDomainId] = React.useState<string>("")
   const [editStatus, setEditStatus] = React.useState("active")
-  const [saving, setSaving] = React.useState(false)
 
   React.useEffect(() => {
     fetchDashboards()
-  }, [])
+    fetchDomains()
+  }, [activeDomainId])
 
   const fetchDashboards = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/dashboards`)
+      const url = activeDomainId
+        ? `${API_URL}/api/dashboards?domain_id=${activeDomainId}`
+        : `${API_URL}/api/dashboards`
+      const res = await fetch(url)
       const data = await res.json()
       setDashboards(data)
       if (data.length > 0 && !selectedDashboard) {
@@ -272,6 +309,16 @@ export default function DashboardPage() {
       // ignore
     } finally {
       setLoading(false)
+    }
+  }
+
+  const fetchDomains = async () => {
+    try {
+      const res = await fetch(`${API_URL}/api/domains`)
+      const data = await res.json()
+      setDomains(Array.isArray(data) ? data : [])
+    } catch {
+      setDomains([])
     }
   }
 
@@ -292,12 +339,14 @@ export default function DashboardPage() {
           description: newDescription.trim(),
           superset_uuid: newUuid.trim(),
           status: "pending",
+          domain_id: newDomainId ? parseInt(newDomainId) : null,
         }),
       })
       await fetchDashboards()
       setNewTitle("")
       setNewDescription("")
       setNewUuid("")
+      setNewDomainId("")
       setDialogOpen(false)
     } catch {
       // ignore
@@ -332,6 +381,7 @@ export default function DashboardPage() {
     setEditTitle(dashboard.title)
     setEditDescription(dashboard.description || "")
     setEditUuid(dashboard.superset_uuid || "")
+    setEditDomainId(dashboard.domain_id ? String(dashboard.domain_id) : "")
     setEditStatus(dashboard.status)
   }
 
@@ -347,6 +397,7 @@ export default function DashboardPage() {
           description: editDescription.trim(),
           superset_uuid: editUuid.trim(),
           status: editStatus,
+          domain_id: editDomainId ? parseInt(editDomainId) : null,
         }),
       })
       setEditTarget(null)
@@ -390,46 +441,24 @@ export default function DashboardPage() {
                 Tambah
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="sm:max-w-md">
               <DialogHeader>
-                <DialogTitle>Tambah Dashboard Baru</DialogTitle>
+                <DialogTitle>Tambah Dashboard</DialogTitle>
                 <DialogDescription>
-                  Tambahkan dashboard untuk dilihat di halaman ini. Hubungkan ke Superset embed untuk visualisasi data.
+                  Hubungkan dashboard Superset ke halaman ini.
                 </DialogDescription>
               </DialogHeader>
-              <div className="space-y-4 py-2">
-                <div className="space-y-2">
-                  <Label htmlFor="dash-title">Judul Dashboard</Label>
-                  <Input
-                    id="dash-title"
-                    placeholder="Contoh: Revenue Analysis"
-                    value={newTitle}
-                    onChange={(e) => setNewTitle(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="dash-desc">Deskripsi</Label>
-                  <Input
-                    id="dash-desc"
-                    placeholder="Contoh: Monthly revenue trends"
-                    value={newDescription}
-                    onChange={(e) => setNewDescription(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="dash-uuid">Superset Dashboard UUID</Label>
-                  <Input
-                    id="dash-uuid"
-                    placeholder="a1b2c3d4-e5f6-7890-abcd-ef1234567890"
-                    value={newUuid}
-                    onChange={(e) => setNewUuid(e.target.value)}
-                    className="font-mono text-xs"
-                  />
-                  <p className="text-[10px] text-muted-foreground">
-                    UUID dashboard dari Apache Superset. Diperlukan untuk embed.
-                  </p>
-                </div>
-              </div>
+              <DashboardFormFields
+                title={newTitle}
+                onTitleChange={setNewTitle}
+                description={newDescription}
+                onDescriptionChange={setNewDescription}
+                uuid={newUuid}
+                onUuidChange={setNewUuid}
+                domainId={newDomainId}
+                onDomainChange={setNewDomainId}
+                domains={domains}
+              />
               <DialogFooter>
                 <Button variant="outline" onClick={() => setDialogOpen(false)}>
                   Batal
@@ -482,6 +511,11 @@ export default function DashboardPage() {
                     >
                       {dashboard.status}
                     </Badge>
+                    {dashboard.dependency_count > 0 && (
+                      <Badge variant="outline" className="text-[10px] shrink-0 gap-1 bg-blue-500/10 text-blue-400 border-blue-500/20">
+                        {dashboard.dependency_count} dependensi
+                      </Badge>
+                    )}
                   </div>
                   <p className="text-xs text-muted-foreground truncate">
                     {dashboard.description || "Tidak ada deskripsi"}
@@ -525,7 +559,7 @@ export default function DashboardPage() {
 
       {/* Embedded Dashboard Area */}
       <motion.div variants={itemVariants}>
-        <Card>
+        <Card className="relative group">
           <CardHeader className="border-b bg-card/50">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -539,9 +573,22 @@ export default function DashboardPage() {
                   </CardDescription>
                 </div>
               </div>
-              <Badge variant="outline" className="font-mono text-[10px]">
-                UUID: {selectedDashboard?.superset_uuid}
-              </Badge>
+              <div className="flex items-center gap-2">
+                {selectedDashboard?.superset_uuid && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={() => setExpandOpen(true)}
+                    title="Perbesar dashboard"
+                  >
+                    <OpenInNewWindowIcon className="size-4" />
+                  </Button>
+                )}
+                <Badge variant="outline" className="font-mono text-[10px]">
+                  UUID: {selectedDashboard?.superset_uuid}
+                </Badge>
+              </div>
             </div>
           </CardHeader>
           <CardContent className="p-0 w-full">
@@ -669,54 +716,28 @@ export default function DashboardPage() {
       </AlertDialog>
 
       {/* Edit Dashboard Dialog */}
-      <Dialog open={!!editTarget} onOpenChange={(open) => { if (!open) setEditTarget(null) }} modal={false}>
+      <Dialog open={!!editTarget} onOpenChange={(open) => { if (!open) setEditTarget(null) }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Edit Dashboard</DialogTitle>
             <DialogDescription>
-              Perbarui informasi dashboard <span className="font-medium text-foreground">{editTarget?.title}</span>
+              Perbarui informasi <span className="font-medium text-foreground">{editTarget?.title}</span>
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-2">
-              <Label htmlFor="edit-title">Judul Dashboard</Label>
-              <Input
-                id="edit-title"
-                value={editTitle}
-                onChange={(e) => setEditTitle(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit-desc">Deskripsi</Label>
-              <Input
-                id="edit-desc"
-                value={editDescription}
-                onChange={(e) => setEditDescription(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit-uuid">Superset Dashboard UUID</Label>
-              <Input
-                id="edit-uuid"
-                value={editUuid}
-                onChange={(e) => setEditUuid(e.target.value)}
-                className="font-mono text-xs"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit-status">Status</Label>
-              <Select value={editStatus} onValueChange={(v) => setEditStatus(v ?? "active")}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Pilih status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="active">Active</SelectItem>
-                  <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="error">Error</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
+          <DashboardFormFields
+            title={editTitle}
+            onTitleChange={setEditTitle}
+            description={editDescription}
+            onDescriptionChange={setEditDescription}
+            uuid={editUuid}
+            onUuidChange={setEditUuid}
+            domainId={editDomainId}
+            onDomainChange={setEditDomainId}
+            domains={domains}
+            status={editStatus}
+            onStatusChange={setEditStatus}
+            showStatus
+          />
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditTarget(null)} disabled={saving}>
               Batal
@@ -736,6 +757,33 @@ export default function DashboardPage() {
               )}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dashboard Expand Dialog */}
+      <Dialog open={expandOpen} onOpenChange={setExpandOpen}>
+        <DialogContent className="max-w-7xl h-[90vh] flex flex-col p-0 gap-0 overflow-hidden">
+          <div className="flex items-center justify-between px-5 pr-14 py-3.5 border-b shrink-0">
+            <div className="flex items-center gap-3">
+              <div className="size-8 rounded-lg bg-pulse/10 flex items-center justify-center">
+                <BarChartIcon className="size-4 text-pulse" />
+              </div>
+              <div>
+                <DialogTitle className="text-base">{selectedDashboard?.title || "Dashboard"}</DialogTitle>
+                <DialogDescription className="text-xs">
+                  Tampilan penuh dashboard Superset
+                </DialogDescription>
+              </div>
+            </div>
+          </div>
+          <div className="flex-1 overflow-auto bg-muted/30">
+            {selectedDashboard?.superset_uuid && (
+              <EmbeddedDashboard
+                dashboardUuid={selectedDashboard.superset_uuid}
+                title={selectedDashboard.title}
+              />
+            )}
+          </div>
         </DialogContent>
       </Dialog>
     </motion.div>

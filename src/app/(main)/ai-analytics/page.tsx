@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { InlineSelect } from "@/components/ui/inline-select"
 import {
   Dialog,
   DialogContent,
@@ -48,6 +49,8 @@ import {
   ChatBubbleIcon,
   ChevronDownIcon,
   TrashIcon as TrashIcon2,
+  OpenInNewWindowIcon,
+  ExitFullScreenIcon,
 } from "@radix-ui/react-icons"
 import { motion, AnimatePresence, type Variants } from "motion/react"
 import * as React from "react"
@@ -202,39 +205,15 @@ function EmbeddedDashboard({ uuid, title }: { uuid: string; title: string }) {
   return (
     <div className="relative w-full">
       {loading && (
-        <div className="w-full">
-          <div className="border border-border/40 rounded-lg bg-card">
-            <div className="flex items-center justify-between border-b border-border/40 px-4 py-3">
-              <div className="flex items-center gap-3">
-                <div className="size-8 rounded-md bg-muted animate-pulse" />
-                <div className="space-y-1.5">
-                  <div className="h-3.5 w-32 bg-muted rounded animate-pulse" />
-                  <div className="h-2.5 w-40 bg-muted rounded animate-pulse" />
-                </div>
-              </div>
-              <div className="h-4 w-28 bg-muted rounded animate-pulse" />
-            </div>
-            <div className="min-h-[500px] flex items-center justify-center p-8">
-              <div className="flex flex-col items-center gap-4">
-                <div className="size-16 rounded-2xl bg-muted animate-pulse" />
-                <div className="space-y-2 text-center">
-                  <div className="h-4 w-48 bg-muted rounded animate-pulse mx-auto" />
-                  <div className="h-3 w-64 bg-muted rounded animate-pulse mx-auto" />
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="size-2 rounded-full bg-muted animate-pulse" />
-                  <div className="h-2.5 w-36 bg-muted rounded animate-pulse" />
-                </div>
-                <div className="grid grid-cols-3 gap-3 mt-2">
-                  {Array.from({ length: 3 }).map((_, i) => (
-                    <div key={i} className="p-3 rounded-lg border border-border/30 text-center space-y-2">
-                      <div className="h-16 w-full bg-muted rounded animate-pulse" />
-                      <div className="h-2 w-20 bg-muted rounded animate-pulse mx-auto" />
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
+        <div className="absolute inset-0 z-10 min-h-[500px] flex flex-col items-center justify-center gap-4 bg-background/80 backdrop-blur-sm rounded-lg">
+          <div className="size-12 rounded-xl bg-muted animate-pulse" />
+          <div className="space-y-2 text-center">
+            <div className="h-4 w-40 bg-muted rounded animate-pulse mx-auto" />
+            <div className="h-3 w-56 bg-muted/60 rounded animate-pulse mx-auto" />
+          </div>
+          <div className="flex items-center gap-2 mt-1">
+            <div className="size-1.5 rounded-full bg-pulse/40 animate-pulse" />
+            <div className="h-2.5 w-24 bg-muted/60 rounded animate-pulse" />
           </div>
         </div>
       )}
@@ -259,6 +238,11 @@ export default function AiAnalyticsPage() {
   const [editStatus, setEditStatus] = React.useState("active")
   const [saving, setSaving] = React.useState(false)
 
+  // Expand dialogs
+  const [chatExpandOpen, setChatExpandOpen] = React.useState(false)
+  const [dashboardExpandOpen, setDashboardExpandOpen] = React.useState(false)
+  const chatExpandEndRef = React.useRef<HTMLDivElement>(null)
+
   // Chat state
   const [chatInput, setChatInput] = React.useState("")
   const [chatMessages, setChatMessages] = React.useState<ChatMessage[]>([])
@@ -275,6 +259,10 @@ export default function AiAnalyticsPage() {
   React.useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [chatMessages])
+
+  React.useEffect(() => {
+    if (chatExpandOpen) chatExpandEndRef.current?.scrollIntoView({ behavior: "smooth" })
+  }, [chatMessages, chatExpandOpen])
 
   const fetchDashboards = async () => {
     try {
@@ -589,29 +577,6 @@ export default function AiAnalyticsPage() {
                   >
                     <EyeOpenIcon className="size-4" />
                   </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="size-8 text-muted-foreground hover:text-foreground"
-                    title="Edit dashboard"
-                    onClick={(e) => handleEditDashboard(e, dashboard)}
-                  >
-                    <Pencil1Icon className="size-4" />
-                  </Button>
-                  {!dashboard.is_default && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="size-8 text-muted-foreground hover:text-destructive"
-                      title="Hapus"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        setDeleteTarget(dashboard)
-                      }}
-                    >
-                      <TrashIcon className="size-4" />
-                    </Button>
-                  )}
                 </div>
               </div>
             </CardContent>
@@ -623,7 +588,18 @@ export default function AiAnalyticsPage() {
       <motion.div variants={itemVariants} className="grid grid-cols-1 lg:grid-cols-5 gap-4">
         {/* Left: Dashboard Preview */}
         <div className="lg:col-span-3">
-          <Card className="overflow-hidden h-full">
+          <Card className="overflow-hidden h-full relative group">
+            {selectedDashboard?.superset_uuid && (
+              <Button
+                variant="secondary"
+                size="icon"
+                className="absolute top-2 right-2 z-10 size-8 opacity-0 group-hover:opacity-100 transition-opacity bg-background/80 backdrop-blur-sm"
+                onClick={() => setDashboardExpandOpen(true)}
+                title="Perbesar dashboard"
+              >
+                <OpenInNewWindowIcon className="size-4" />
+              </Button>
+            )}
             <CardContent className="p-0">
               {selectedDashboard?.superset_uuid ? (
                 <EmbeddedDashboard
@@ -660,6 +636,15 @@ export default function AiAnalyticsPage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-7"
+                    onClick={() => setChatExpandOpen(true)}
+                    title="Perbesar chat"
+                  >
+                    <ExitFullScreenIcon className="size-3.5" />
+                  </Button>
                   <Button
                     variant="ghost"
                     size="icon"
@@ -804,7 +789,7 @@ export default function AiAnalyticsPage() {
                 </motion.div>
               )}
               <div ref={chatEndRef} />
-              </div>
+            </div>
             </ScrollArea>
 
             {/* Chat Input */}
@@ -859,106 +844,170 @@ export default function AiAnalyticsPage() {
         </Card>
       </motion.div>
 
-      {/* Edit Dashboard Dialog */}
-      <Dialog open={!!editTarget} onOpenChange={(open) => { if (!open) setEditTarget(null) }} modal={false}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Edit Dashboard</DialogTitle>
-            <DialogDescription>
-              Perbarui informasi dashboard <span className="font-medium text-foreground">{editTarget?.title}</span>
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-2">
-              <Label htmlFor="edit-title">Judul Dashboard</Label>
-              <Input
-                id="edit-title"
-                value={editTitle}
-                onChange={(e) => setEditTitle(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit-desc">Deskripsi</Label>
-              <Input
-                id="edit-desc"
-                value={editDescription}
-                onChange={(e) => setEditDescription(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit-uuid">Superset Dashboard UUID</Label>
-              <Input
-                id="edit-uuid"
-                value={editUuid}
-                onChange={(e) => setEditUuid(e.target.value)}
-                className="font-mono text-xs"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit-status">Status</Label>
-              <Select value={editStatus} onValueChange={(v) => setEditStatus(v ?? "active")}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Pilih status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="active">Active</SelectItem>
-                  <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="error">Error</SelectItem>
-                </SelectContent>
-              </Select>
+      {/* Dashboard Expand Dialog */}
+      <Dialog open={dashboardExpandOpen} onOpenChange={setDashboardExpandOpen}>
+        <DialogContent className="max-w-7xl h-[90vh] flex flex-col p-0 gap-0 overflow-hidden">
+          <div className="flex items-center justify-between px-5 pr-14 py-3.5 border-b shrink-0">
+            <div className="flex items-center gap-3">
+              <div className="size-8 rounded-lg bg-pulse/10 flex items-center justify-center">
+                <BarChartIcon className="size-4 text-pulse" />
+              </div>
+              <div>
+                <DialogTitle className="text-base">{selectedDashboard?.title || "Dashboard"}</DialogTitle>
+                <DialogDescription className="text-xs">
+                  Tampilan penuh dashboard Superset
+                </DialogDescription>
+              </div>
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditTarget(null)} disabled={saving}>
-              Batal
-            </Button>
-            <Button
-              className="bg-pulse hover:bg-pulse/90 text-background"
-              onClick={confirmEdit}
-              disabled={saving || !editTitle.trim()}
-            >
-              {saving ? (
-                <>
-                  <div className="size-3 border-2 border-background/30 border-t-background rounded-full animate-spin mr-1.5" />
-                  Menyimpan...
-                </>
-              ) : "Simpan"}
-            </Button>
-          </DialogFooter>
+          <div className="flex-1 overflow-auto bg-muted/30">
+            {selectedDashboard?.superset_uuid && (
+              <EmbeddedDashboard
+                key={`expand-${selectedDashboard.superset_uuid}`}
+                uuid={selectedDashboard.superset_uuid}
+                title={selectedDashboard.title}
+              />
+            )}
+          </div>
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirmation Dialog */}
-      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null) }}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Hapus Dashboard</AlertDialogTitle>
-            <AlertDialogDescription>
-              Apakah Anda yakin ingin menghapus <span className="font-medium text-foreground">{deleteTarget?.title}</span>? Tindakan ini tidak dapat dibatalkan.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Batal</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDelete}
-              disabled={deleting}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {deleting ? (
-                <>
-                  <div className="size-3 border-2 border-background/30 border-t-background rounded-full animate-spin mr-1.5" />
-                  Menghapus...
-                </>
-              ) : (
-                <>
-                  <TrashIcon className="size-3 mr-1.5" />
-                  Hapus
-                </>
-              )}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* Chat Expand Dialog */}
+      <Dialog open={chatExpandOpen} onOpenChange={setChatExpandOpen}>
+        <DialogContent className="max-w-2xl h-[85vh] flex flex-col p-0 gap-0 overflow-hidden">
+          {/* Header */}
+          <div className="flex items-center justify-between px-5 pr-14 py-3.5 border-b shrink-0">
+            <div className="flex items-center gap-3">
+              <div className="size-8 rounded-lg bg-pulse/10 flex items-center justify-center">
+                <LightningBoltIcon className="size-4 text-pulse" />
+              </div>
+              <div>
+                <DialogTitle className="text-base">Chat Analisis</DialogTitle>
+                <DialogDescription className="text-xs">
+                  {selectedDashboard ? selectedDashboard.title : "Pilih dashboard terlebih dahulu"}
+                </DialogDescription>
+              </div>
+            </div>
+            <div className="flex items-center gap-1">
+              <Button variant="ghost" size="icon" className="size-8" onClick={newSession} title="Chat baru">
+                <PlusIcon className="size-4" />
+              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="size-8" title="Riwayat chat">
+                    <ChatBubbleIcon className="size-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-72">
+                  {sessions.length === 0 ? (
+                    <div className="px-4 py-3 text-xs text-muted-foreground text-center">
+                      Belum ada riwayat
+                    </div>
+                  ) : (
+                    sessions.slice(0, 10).map((s) => (
+                      <DropdownMenuItem
+                        key={s.session_id}
+                        className="flex items-center justify-between gap-2 py-2.5 px-3"
+                        onClick={() => loadSession(s.session_id)}
+                      >
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-medium truncate">
+                            {s.dashboard_title || s.title}
+                          </p>
+                          <p className="text-[10px] text-muted-foreground mt-0.5">
+                            {new Date(s.updated_at).toLocaleDateString("id-ID", {
+                              day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
+                            })}
+                          </p>
+                        </div>
+                        <Button
+                          variant="ghost" size="icon" className="size-5 shrink-0 hover:text-destructive"
+                          onClick={(e) => { e.stopPropagation(); deleteSessionHandler(s.session_id) }}
+                        >
+                          <TrashIcon2 className="size-3" />
+                        </Button>
+                      </DropdownMenuItem>
+                    ))
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </div>
+
+          {/* Messages */}
+          <div className="flex-1 min-h-0">
+            <ScrollArea className="h-full">
+              <div className="px-5 py-5 space-y-5">
+                {chatMessages.length === 0 && (
+                  <div className="flex flex-col items-center justify-center py-20 text-center">
+                    <div className="size-14 rounded-2xl bg-pulse/10 flex items-center justify-center mb-4">
+                      <LightningBoltIcon className="size-7 text-pulse/40" />
+                    </div>
+                    <p className="text-sm font-medium text-muted-foreground">Mulai analisis data</p>
+                    <p className="text-xs text-muted-foreground/60 mt-1.5 max-w-[240px]">
+                      {selectedDashboard
+                        ? "Tanya tentang data dashboard yang dipilih"
+                        : "Pilih dashboard terlebih dahulu"}
+                    </p>
+                  </div>
+                )}
+                {chatMessages.map((msg, i) => (
+                  <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+                    <div
+                      className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${
+                        msg.role === "user"
+                          ? "bg-pulse text-background rounded-br-md"
+                          : "bg-muted text-foreground rounded-bl-md"
+                      }`}
+                    >
+                      {msg.role === "user" ? (
+                        <p className="whitespace-pre-wrap">{msg.content}</p>
+                      ) : (
+                        <SimpleMarkdown content={msg.content} />
+                      )}
+                    </div>
+                  </div>
+                ))}
+                {isSending && (
+                  <div className="flex justify-start">
+                    <div className="bg-muted rounded-2xl rounded-bl-md px-4 py-3 text-sm flex items-center gap-2.5">
+                      <div className="flex gap-1">
+                        <div className="size-1.5 bg-pulse/40 rounded-full animate-bounce [animation-delay:-0.3s]" />
+                        <div className="size-1.5 bg-pulse/40 rounded-full animate-bounce [animation-delay:-0.15s]" />
+                        <div className="size-1.5 bg-pulse/40 rounded-full animate-bounce" />
+                      </div>
+                    </div>
+                  </div>
+                )}
+                <div ref={chatExpandEndRef} />
+              </div>
+            </ScrollArea>
+          </div>
+
+          {/* Input */}
+          <div className="border-t px-5 py-3.5 shrink-0 bg-card/50">
+            <form onSubmit={(e) => { e.preventDefault(); handleSendMessage() }} className="flex items-center gap-2.5">
+              <Input
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                placeholder={selectedDashboard ? "Tanya tentang data dashboard..." : "Pilih dashboard terlebih dahulu"}
+                disabled={!selectedDashboard || isSending}
+                className="flex-1 h-10"
+              />
+              <Button
+                type="submit" size="icon" className="size-10 shrink-0 bg-pulse hover:bg-pulse/90 text-background rounded-lg"
+                disabled={!chatInput.trim() || !selectedDashboard || isSending}
+              >
+                {isSending ? (
+                  <div className="size-4 border-2 border-background/30 border-t-background rounded-full animate-spin" />
+                ) : (
+                  <PaperPlaneIcon className="size-4" />
+                )}
+              </Button>
+            </form>
+          </div>
+        </DialogContent>
+      </Dialog>
     </motion.div>
     </PageSkeletonWrapper>
   )

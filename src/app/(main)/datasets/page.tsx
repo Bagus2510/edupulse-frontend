@@ -47,6 +47,9 @@ interface DatasetTable {
   full_name: string
   row_count: number
   column_count: number
+  last_built_at?: string | null
+  freshness?: "fresh" | "stale" | "never_built" | null
+  meta_row_count?: number | null
 }
 
 interface TableDetail {
@@ -384,7 +387,27 @@ export default function DatasetsPage() {
                             <TableIcon className="size-4 text-violet-400" />
                           </div>
                           <div className="min-w-0">
-                            <p className="text-sm font-medium truncate">{ds.table_name}</p>
+                            <div className="flex items-center gap-2">
+                              <p className="text-sm font-medium truncate">{ds.table_name}</p>
+                              {ds.freshness && (
+                                <span
+                                  className={`size-2 rounded-full shrink-0 ${
+                                    ds.freshness === "fresh"
+                                      ? "bg-emerald-500"
+                                      : ds.freshness === "stale"
+                                      ? "bg-amber-500"
+                                      : "bg-muted-foreground/40"
+                                  }`}
+                                  title={
+                                    ds.freshness === "fresh"
+                                      ? "Fresh (< 24 jam)"
+                                      : ds.freshness === "stale"
+                                      ? "Stale (24 jam - 7 hari)"
+                                      : "Belum pernah dibangun"
+                                  }
+                                />
+                              )}
+                            </div>
                             <p className="text-xs text-muted-foreground font-mono">{ds.full_name}</p>
                           </div>
                         </div>
@@ -398,6 +421,11 @@ export default function DatasetsPage() {
                           <ColumnsIcon className="size-3" />
                           <span>{ds.column_count} kolom</span>
                         </div>
+                        {ds.last_built_at && (
+                          <span className="text-[10px] text-muted-foreground ml-auto">
+                            {new Date(ds.last_built_at).toLocaleDateString("id-ID", { day: "2-digit", month: "short" })}
+                          </span>
+                        )}
                       </div>
                     </motion.div>
                   ))}
