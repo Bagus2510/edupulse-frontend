@@ -58,8 +58,72 @@ import { embedDashboard } from "@superset-ui/embedded-sdk"
 import { API_URL } from "@/lib/constants"
 import { getAccessToken } from "@/lib/auth"
 
-function SimpleMarkdown({ content }: { content: string }) {
-  const normalized = content.replace(/\r\n?/g, "\n")
+function StreamingCursor() {
+  return (
+    <span
+      className="inline-block w-[3px] h-[1.15em] bg-pulse ml-[1px] align-middle -mb-[1px]"
+      style={{ animation: "blink 1s step-end infinite" }}
+    />
+  )
+}
+
+function useTypewriter(fullText: string, animate: boolean, onComplete?: () => void) {
+  const [displayed, setDisplayed] = React.useState("")
+  const indexRef = React.useRef(0)
+  const targetRef = React.useRef(fullText)
+  const completedRef = React.useRef(false)
+  const onCompleteRef = React.useRef(onComplete)
+
+  React.useEffect(() => {
+    onCompleteRef.current = onComplete
+  }, [onComplete])
+
+  // The network stream and the visual typewriter are separate concerns. If
+  // the browser buffers the response, the target can still be typed locally.
+  React.useEffect(() => {
+    targetRef.current = fullText
+
+    if (!animate) {
+      indexRef.current = fullText.length
+      completedRef.current = true
+    } else {
+      if (indexRef.current > fullText.length) {
+        indexRef.current = fullText.length
+      }
+      if (fullText.length > indexRef.current) {
+        completedRef.current = false
+      }
+    }
+  }, [fullText, animate])
+
+  React.useEffect(() => {
+    if (!animate) return
+
+    const timer = setInterval(() => {
+      const target = targetRef.current
+      if (indexRef.current >= target.length) {
+        if (target.length > 0 && !completedRef.current) {
+          completedRef.current = true
+          onCompleteRef.current?.()
+        }
+        return
+      }
+
+      const remaining = target.length - indexRef.current
+      const step = remaining > 80 ? 4 : remaining > 20 ? 3 : 2
+      indexRef.current = Math.min(indexRef.current + step, target.length)
+      setDisplayed(target.slice(0, indexRef.current))
+    }, 18)
+
+    return () => clearInterval(timer)
+  }, [animate])
+
+  return animate ? displayed : fullText
+}
+
+function SimpleMarkdown({ content, isStreaming = false, animate = false, onComplete }: { content: string; isStreaming?: boolean; animate?: boolean; onComplete?: () => void }) {
+  const displayed = useTypewriter(content, animate, onComplete)
+  const normalized = displayed.replace(/\r\n?/g, "\n")
   const lines = normalized.split("\n")
   const elements: React.ReactNode[] = []
   let listItems: React.ReactNode[] = []
@@ -109,7 +173,12 @@ function SimpleMarkdown({ content }: { content: string }) {
   }
   flushList()
 
-  return <div className="text-sm leading-relaxed space-y-1">{elements}</div>
+  return (
+    <div className="text-sm leading-relaxed space-y-1">
+      {elements}
+      {isStreaming && <StreamingCursor />}
+    </div>
+  )
 }
 
 const containerVariants = {
@@ -249,7 +318,17 @@ export default function AiAnalyticsPage() {
   const [isSending, setIsSending] = React.useState(false)
   const [sessionId, setSessionId] = React.useState(() => crypto.randomUUID())
   const [sessions, setSessions] = React.useState<ChatSession[]>([])
+  const [typingMessageIndex, setTypingMessageIndex] = React.useState<number | null>(null)
+  const networkFinishedRef = React.useRef(false)
+  const typewriterFinishedRef = React.useRef(false)
   const chatEndRef = React.useRef<HTMLDivElement>(null)
+
+  const handleTypingComplete = React.useCallback(() => {
+    typewriterFinishedRef.current = true
+    if (networkFinishedRef.current) {
+      setIsSending(false)
+    }
+  }, [])
 
   React.useEffect(() => {
     fetchDashboards()
@@ -316,6 +395,8 @@ export default function AiAnalyticsPage() {
         })
         setChatMessages(messages)
         setSessionId(sid)
+        // History is rendered immediately; only a newly received response types out.
+        setTypingMessageIndex(null)
       }
     } catch {
       // ignore
@@ -337,6 +418,7 @@ export default function AiAnalyticsPage() {
   const newSession = () => {
     setSessionId(crypto.randomUUID())
     setChatMessages([])
+    setTypingMessageIndex(null)
   }
 
   const handleSendMessage = async () => {
@@ -348,6 +430,10 @@ export default function AiAnalyticsPage() {
       timestamp: new Date(),
     }
 
+    // The assistant will be inserted directly after this user message.
+    networkFinishedRef.current = false
+    typewriterFinishedRef.current = false
+    setTypingMessageIndex(chatMessages.length + 1)
     setChatMessages((prev) => [...prev, userMessage])
     setChatInput("")
     setIsSending(true)
@@ -395,10 +481,16 @@ export default function AiAnalyticsPage() {
         buffer = messages.pop() || ""
         for (const msg of messages) {
           const dataLine = msg.split("\n").find(l => l.startsWith("data: ")) || ""
-          const chunk = dataLine.slice(6).trim()
+          const chunk = dataLine.slice(6).replace(/\r$/, "")
           if (chunk === "[DONE]") break
           if (!chunk) continue
-          accumulated += chunk.replace(/\\n/g, "\n")
+          try {
+            // Backend sends JSON strings so whitespace is not modified by SSE parsing.
+            accumulated += JSON.parse(chunk) as string
+          } catch {
+            // Backward-compatible fallback for an older backend response.
+            accumulated += chunk.replace(/\\n/g, "\n")
+          }
           setChatMessages((prev) => {
             const updated = [...prev]
             updated[updated.length - 1] = {
@@ -418,7 +510,11 @@ export default function AiAnalyticsPage() {
       }
       setChatMessages((prev) => [...prev, errorMessage])
     } finally {
-      setIsSending(false)
+      // Keep the composer locked until the local typewriter also completes.
+      networkFinishedRef.current = true
+      if (typewriterFinishedRef.current) {
+        setIsSending(false)
+      }
       fetchSessions(selectedDashboard?.superset_uuid)
     }
   }
@@ -533,8 +629,11 @@ export default function AiAnalyticsPage() {
                 : "hover:border-muted-foreground/20 hover:shadow-sm"
             }`}
             onClick={() => {
+              // Chat history is dashboard-scoped; never reuse the old session.
               setSelectedDashboard(dashboard)
+              setSessionId(crypto.randomUUID())
               setChatMessages([])
+              setTypingMessageIndex(null)
               fetchSessions(dashboard.superset_uuid)
             }}
           >
@@ -572,7 +671,10 @@ export default function AiAnalyticsPage() {
                     onClick={(e) => {
                       e.stopPropagation()
                       setSelectedDashboard(dashboard)
+                      setSessionId(crypto.randomUUID())
                       setChatMessages([])
+                      setTypingMessageIndex(null)
+                      fetchSessions(dashboard.superset_uuid)
                     }}
                   >
                     <EyeOpenIcon className="size-4" />
@@ -748,32 +850,41 @@ export default function AiAnalyticsPage() {
                     </Button>
                   </motion.div>
                 ) : (
-                  chatMessages.map((msg, i) => (
-                    <motion.div
-                      key={i}
-                      initial={{ opacity: 0, y: 8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.3 }}
-                      className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
-                    >
-                      <div
-                        className={`max-w-[85%] rounded-lg px-3 py-2 ${
-                          msg.role === "user"
-                            ? "bg-pulse text-background"
-                            : "bg-muted"
-                        }`}
+                  chatMessages.map((msg, i) => {
+                    const isLast = i === chatMessages.length - 1
+                    const isStreamingMessage = isLast && isSending && msg.role === "assistant"
+                    return (
+                      <motion.div
+                        key={i}
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.3 }}
+                        className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
                       >
-                        {msg.role === "assistant" ? (
-                          <SimpleMarkdown content={msg.content} />
-                        ) : (
-                          <p className="text-sm">{msg.content}</p>
-                        )}
-                      </div>
-                    </motion.div>
-                  ))
+                        <div
+                          className={`max-w-[85%] rounded-lg px-3 py-2 ${
+                            msg.role === "user"
+                              ? "bg-pulse text-background"
+                              : "bg-muted"
+                          }`}
+                        >
+                          {msg.role === "assistant" ? (
+                            <SimpleMarkdown
+                              content={msg.content}
+                              isStreaming={isStreamingMessage}
+                              animate={typingMessageIndex === i}
+                              onComplete={typingMessageIndex === i ? handleTypingComplete : undefined}
+                            />
+                          ) : (
+                            <p className="text-sm">{msg.content}</p>
+                          )}
+                        </div>
+                      </motion.div>
+                    )
+                  })
                 )}
               </AnimatePresence>
-              {isSending && (
+              {isSending && chatMessages.length === 0 && (
                 <motion.div
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -951,24 +1062,33 @@ export default function AiAnalyticsPage() {
                     </p>
                   </div>
                 )}
-                {chatMessages.map((msg, i) => (
-                  <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-                    <div
-                      className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${
-                        msg.role === "user"
-                          ? "bg-pulse text-background rounded-br-md"
-                          : "bg-muted text-foreground rounded-bl-md"
-                      }`}
-                    >
-                      {msg.role === "user" ? (
-                        <p className="whitespace-pre-wrap">{msg.content}</p>
-                      ) : (
-                        <SimpleMarkdown content={msg.content} />
-                      )}
+                {chatMessages.map((msg, i) => {
+                  const isLast = i === chatMessages.length - 1
+                  const isStreamingMessage = isLast && isSending && msg.role === "assistant"
+                  return (
+                    <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+                      <div
+                        className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${
+                          msg.role === "user"
+                            ? "bg-pulse text-background rounded-br-md"
+                            : "bg-muted text-foreground rounded-bl-md"
+                        }`}
+                      >
+                        {msg.role === "user" ? (
+                          <p className="whitespace-pre-wrap">{msg.content}</p>
+                        ) : (
+                          <SimpleMarkdown
+                            content={msg.content}
+                            isStreaming={isStreamingMessage}
+                            animate={typingMessageIndex === i}
+                            onComplete={typingMessageIndex === i ? handleTypingComplete : undefined}
+                          />
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
-                {isSending && (
+                  )
+                })}
+                {isSending && chatMessages.length === 0 && (
                   <div className="flex justify-start">
                     <div className="bg-muted rounded-2xl rounded-bl-md px-4 py-3 text-sm flex items-center gap-2.5">
                       <div className="flex gap-1">

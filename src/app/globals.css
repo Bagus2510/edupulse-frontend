@@ -177,3 +177,9 @@ superset-dashboard iframe {
   min-height: 600px !important;
   border: none !important;
 }
+
+/* Chat streaming cursor */
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
