@@ -49,11 +49,19 @@ interface LineageGraph {
 }
 
 const NODE_COLORS: Record<string, { bg: string; border: string; icon: string }> = {
-  raw: { bg: "bg-blue-500/10", border: "border-blue-500/30", icon: "text-blue-400" },
-  pipeline: { bg: "bg-purple-500/10", border: "border-purple-500/30", icon: "text-purple-400" },
-  step: { bg: "bg-purple-500/5", border: "border-purple-500/20", icon: "text-purple-300" },
-  mart: { bg: "bg-violet-500/10", border: "border-violet-500/30", icon: "text-violet-400" },
-  dashboard: { bg: "bg-emerald-500/10", border: "border-emerald-500/30", icon: "text-emerald-400" },
+  raw: { bg: "bg-sky-500/10", border: "border-sky-400/30", icon: "text-sky-300" },
+  pipeline: { bg: "bg-pulse/10", border: "border-pulse/30", icon: "text-pulse" },
+  step: { bg: "bg-pulse/5", border: "border-pulse/20", icon: "text-pulse/80" },
+  mart: { bg: "bg-amber-500/10", border: "border-amber-400/30", icon: "text-amber-300" },
+  dashboard: { bg: "bg-emerald-500/10", border: "border-emerald-400/30", icon: "text-emerald-300" },
+}
+
+const NODE_LABELS: Record<string, string> = {
+  raw: "Raw data",
+  pipeline: "Pipeline",
+  step: "Transform",
+  mart: "Data mart",
+  dashboard: "Dashboard",
 }
 
 const NODE_ICONS: Record<string, React.ReactNode> = {
@@ -170,33 +178,46 @@ function LineageGraphCanvas({ data }: { data: LineageGraph }) {
   }, [data.edges, nodePositions])
 
   return (
-    <div className="relative">
-      {/* Controls */}
-      <div className="absolute top-3 right-3 z-10 flex items-center gap-1">
-        <Button variant="secondary" size="icon" className="size-8" onClick={handleZoomIn} title="Perbesar">
+    <div className="relative overflow-hidden rounded-2xl border border-border/60 bg-card shadow-sm">
+      <div className="pointer-events-none absolute inset-0 opacity-60 [background-image:radial-gradient(circle_at_20%_20%,color-mix(in_oklab,var(--pulse)_12%,transparent),transparent_32%),linear-gradient(to_right,color-mix(in_oklab,var(--border)_35%,transparent)_1px,transparent_1px),linear-gradient(to_bottom,color-mix(in_oklab,var(--border)_35%,transparent)_1px,transparent_1px)] [background-size:auto,32px_32px,32px_32px]" />
+      <div className="relative border-b border-border/50 px-5 py-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="mb-1 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-pulse">
+              <span className="size-1.5 rounded-full bg-pulse shadow-[0_0_10px_var(--pulse)]" />
+              Data topology
+            </div>
+            <h2 className="text-base font-semibold tracking-tight">Dependency map</h2>
+            <p className="mt-1 text-xs text-muted-foreground">Klik node untuk melihat metadata dan status sumbernya.</p>
+          </div>
+          <div className="flex items-center gap-1.5 self-start rounded-lg border border-border/60 bg-background/60 p-1 backdrop-blur-sm sm:self-auto">
+            <Button variant="ghost" size="icon" className="size-8" onClick={handleZoomIn} title="Perbesar">
           <ZoomInIcon className="size-4" />
         </Button>
-        <Button variant="secondary" size="icon" className="size-8" onClick={handleZoomOut} title="Perkecil">
-          <ZoomOutIcon className="size-4" />
-        </Button>
-        <Button variant="secondary" size="icon" className="size-8" onClick={handleReset} title="Reset">
-          <ResetIcon className="size-4" />
-        </Button>
+            <Button variant="ghost" size="icon" className="size-8" onClick={handleZoomOut} title="Perkecil">
+              <ZoomOutIcon className="size-4" />
+            </Button>
+            <Button variant="ghost" size="icon" className="size-8" onClick={handleReset} title="Reset">
+              <ResetIcon className="size-4" />
+            </Button>
+          </div>
+        </div>
       </div>
 
       {/* Legend */}
-      <div className="absolute top-3 left-3 z-10 flex items-center gap-3 bg-background/80 backdrop-blur-sm rounded-lg px-3 py-2 border">
+      <div className="relative flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-border/40 px-5 py-3">
         {Object.entries(NODE_COLORS).filter(([k]) => k !== "step").map(([type, colors]) => (
-          <div key={type} className="flex items-center gap-1.5">
-            <div className={`size-2.5 rounded-sm ${colors.bg} border ${colors.border}`} />
-            <span className="text-[10px] text-muted-foreground capitalize">{type}</span>
+          <div key={type} className="flex items-center gap-2">
+            <div className={`size-2 rounded-full ${colors.bg} border ${colors.border}`} />
+            <span className="text-[10px] font-medium text-muted-foreground">{NODE_LABELS[type]}</span>
           </div>
         ))}
+        <span className="ml-auto hidden text-[10px] text-muted-foreground/60 sm:block">Scroll untuk zoom · drag untuk geser</span>
       </div>
 
       {/* SVG */}
       <div
-        className="w-full overflow-hidden rounded-lg border bg-card/50 cursor-grab active:cursor-grabbing"
+        className="relative w-full overflow-hidden bg-background/30 cursor-grab active:cursor-grabbing"
         style={{ height: Math.min(svgHeight * zoom + 40, 700) }}
         onWheel={handleWheel}
       >
@@ -272,7 +293,7 @@ function LineageGraphCanvas({ data }: { data: LineageGraph }) {
                       <p className="text-xs font-medium truncate">{node.label}</p>
                       <div className="flex items-center gap-1.5 mt-0.5">
                         <Badge variant="outline" className="text-[9px] px-1 py-0">
-                          {node.type}
+                          {NODE_LABELS[node.type] || node.type}
                         </Badge>
                         {node.type === "mart" && (node.metadata.freshness as string) && (
                           <div className={`size-1.5 rounded-full ${FRESHNESS_COLORS[node.metadata.freshness as string] || ""}`} />
@@ -298,12 +319,12 @@ function LineageGraphCanvas({ data }: { data: LineageGraph }) {
           <CardHeader className="py-3">
             <div className="flex items-center justify-between">
               <CardTitle className="text-sm flex items-center gap-2">
-                <span className={NODE_COLORS[selectedNode.type]?.icon || ""}>
+                <span className={`flex size-7 items-center justify-center rounded-lg ${NODE_COLORS[selectedNode.type]?.bg || "bg-muted"} ${NODE_COLORS[selectedNode.type]?.icon || ""}`}>
                   {NODE_ICONS[selectedNode.type]}
                 </span>
-                {selectedNode.label}
+                <span className="truncate">{selectedNode.label}</span>
               </CardTitle>
-              <Badge variant="outline">{selectedNode.type}</Badge>
+              <Badge variant="outline" className="shrink-0 text-[10px]">{NODE_LABELS[selectedNode.type] || selectedNode.type}</Badge>
             </div>
           </CardHeader>
           <CardContent className="py-2">
@@ -326,6 +347,16 @@ export default function LineagePage() {
   const [data, setData] = React.useState<LineageGraph | null>(null)
   const [loading, setLoading] = React.useState(true)
   const { activeDomainId } = useDomain()
+
+  const lineageStats = React.useMemo(() => {
+    const nodes = data?.nodes || []
+    return {
+      nodes: nodes.length,
+      edges: data?.edges.length || 0,
+      sources: nodes.filter((node) => node.type === "raw").length,
+      outputs: nodes.filter((node) => node.type === "dashboard").length,
+    }
+  }, [data])
 
   React.useEffect(() => {
     const fetchLineage = async () => {
@@ -350,11 +381,30 @@ export default function LineagePage() {
     <PageSkeletonWrapper skeleton={<div className="h-[600px] bg-muted/20 rounded-lg animate-pulse" />}>
       <motion.div variants={containerVariants} initial="hidden" animate="show" className="space-y-4">
         <motion.div variants={itemVariants}>
-          <div>
-            <h1 className="text-lg font-semibold">Alur Data</h1>
-            <p className="text-sm text-muted-foreground">
-              Visualisasi alur data dari raw table ke pipeline, data mart, hingga dashboard
-            </p>
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <div className="mb-2 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-pulse">
+                <span className="size-1.5 rounded-full bg-pulse" />
+                Observability / Lineage
+              </div>
+              <h1 className="text-2xl font-semibold tracking-tight">Alur Data</h1>
+              <p className="mt-1.5 max-w-xl text-sm leading-relaxed text-muted-foreground">
+                Telusuri perjalanan data dari raw table, transformasi pipeline, data mart, hingga dashboard yang menggunakannya.
+              </p>
+            </div>
+            <div className="grid grid-cols-4 divide-x rounded-xl border border-border/60 bg-card/60 shadow-sm backdrop-blur-sm">
+              {[
+                ["Node", lineageStats.nodes],
+                ["Relasi", lineageStats.edges],
+                ["Sumber", lineageStats.sources],
+                ["Output", lineageStats.outputs],
+              ].map(([label, value]) => (
+                <div key={label} className="min-w-[68px] px-3 py-2.5 text-center first:pl-4 last:pr-4">
+                  <p className="font-mono text-base font-semibold tracking-tight">{value}</p>
+                  <p className="mt-0.5 text-[9px] font-medium uppercase tracking-wider text-muted-foreground">{label}</p>
+                </div>
+              ))}
+            </div>
           </div>
         </motion.div>
 
@@ -368,8 +418,9 @@ export default function LineagePage() {
           ) : (
             <Card>
               <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-                <div className="size-14 rounded-2xl bg-muted/50 flex items-center justify-center mb-4">
-                  <RocketIcon className="size-7 text-muted-foreground/50" />
+                <div className="relative mb-4 flex size-14 items-center justify-center rounded-2xl border border-pulse/20 bg-pulse/10">
+                  <div className="absolute inset-2 rounded-xl border border-dashed border-pulse/30" />
+                  <RocketIcon className="relative size-7 text-pulse/70" />
                 </div>
                 <p className="text-sm font-medium text-muted-foreground">Belum ada data alur</p>
                 <p className="text-xs text-muted-foreground/70 mt-1 max-w-xs">
