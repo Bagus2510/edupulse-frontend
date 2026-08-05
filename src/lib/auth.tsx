@@ -136,6 +136,16 @@ export function getAccessToken(): string | null {
   return localStorage.getItem(ACCESS_KEY)
 }
 
+const ROLE_LEVELS: Record<string, number> = {
+  viewer: 10,
+  editor: 20,
+  admin: 30,
+}
+
+export function hasMinimumRole(role: string | null | undefined, minimumRole: "viewer" | "editor" | "admin"): boolean {
+  return (ROLE_LEVELS[role || ""] || 0) >= ROLE_LEVELS[minimumRole]
+}
+
 export function getCurrentUser(): User | null {
   const raw = localStorage.getItem(USER_KEY)
   if (!raw) return null

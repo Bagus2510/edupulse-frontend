@@ -112,8 +112,11 @@ function DomainFormFields({
       <FormField label="Warna" hint="Warna untuk identitas visual domain">
         <div className="flex gap-2 pt-1">
           {DOMAIN_COLORS.map((c) => (
-            <button
+            <Button
               key={c.value}
+              type="button"
+              variant="ghost"
+              size="icon"
               className={`size-8 rounded-full border-2 transition-all ${c.class} ${
                 color === c.value
                   ? "border-foreground scale-110"
@@ -121,6 +124,7 @@ function DomainFormFields({
               }`}
               onClick={() => onColorChange(c.value)}
               title={c.label}
+              aria-label={c.label}
             />
           ))}
         </div>
@@ -150,7 +154,7 @@ export default function DomainsPage() {
     fetchDomains()
   }, [])
 
-  const fetchDomains = async () => {
+  async function fetchDomains() {
     try {
       const res = await fetch(`${API_URL}/api/domains`)
       const data = await res.json()
@@ -249,12 +253,11 @@ export default function DomainsPage() {
       animate="show"
       className="space-y-6 max-w-7xl mx-auto"
     >
-      <motion.div variants={itemVariants} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="space-y-1">
-          <h1 className="text-2xl font-bold tracking-tight">Domain</h1>
-          <p className="text-sm text-muted-foreground">
-            Kelola domain untuk mengelompokkan pipeline dan dashboard
-          </p>
+      <motion.div variants={itemVariants} className="flex flex-col gap-4 border-b border-border pb-5 sm:flex-row sm:items-end sm:justify-between">
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-[0.16em] text-pulse"><GlobeIcon className="size-3" />Workspace context</div>
+          <h1 className="text-3xl font-semibold tracking-tight">Domain</h1>
+          <p className="text-sm text-muted-foreground">Kelompokkan pipeline dan dashboard berdasarkan konteks analitik.</p>
         </div>
         <Button
           onClick={() => setCreateOpen(true)}
@@ -263,10 +266,6 @@ export default function DomainsPage() {
           <PlusIcon className="size-3.5 mr-1.5" />
           Buat Domain
         </Button>
-      </motion.div>
-
-      <motion.div variants={itemVariants}>
-        <Separator />
       </motion.div>
 
       {loading ? (
@@ -294,7 +293,7 @@ export default function DomainsPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
           {domains.map((domain) => (
             <motion.div key={domain.id} variants={itemVariants}>
-              <Card className="group border-border/40 hover:border-pulse/30 transition-all duration-200">
+              <Card className="rounded-lg border-border/60 shadow-none hover:border-pulse/30 transition-all duration-200">
                 <CardContent className="p-4">
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-3 min-w-0">

@@ -39,6 +39,8 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { Separator } from "@/components/ui/separator"
 import * as React from "react"
 import { clearAuth, getCurrentUser } from "@/lib/auth"
+import { DomainSwitcher } from "./domain-switcher"
+import { useDomain } from "@/lib/domain-context"
 
 const navItems = [
   { label: "Ringkasan", href: "/home", icon: DashboardIcon },
@@ -58,6 +60,7 @@ export function TopNav() {
   const [open, setOpen] = React.useState(false)
   const [profileOpen, setProfileOpen] = React.useState(false)
   const user = getCurrentUser()
+  const { activeDomainId } = useDomain()
 
   const handleLogout = () => {
     clearAuth()
@@ -81,8 +84,13 @@ export function TopNav() {
               className="h-8 w-auto object-contain"
             />
           </div>
+          <div className="px-3 pt-3 pb-1">
+            <DomainSwitcher />
+          </div>
           <nav className="px-3 py-4 space-y-1">
-            {navItems.map((item) => {
+            {navItems
+              .filter((item) => !(activeDomainId !== null && item.href === "/domains"))
+              .map((item) => {
               const isActive = pathname === item.href
               return (
                 <Link

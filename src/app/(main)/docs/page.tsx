@@ -1,301 +1,325 @@
 "use client"
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Separator } from "@/components/ui/separator"
-import { PageSkeletonWrapper } from "@/components/skeletons/page-skeleton-wrapper"
-import { DocsSkeleton } from "@/components/skeletons/docs-skeleton"
+import * as React from "react"
+import { motion, useReducedMotion } from "motion/react"
 import {
-  FileTextIcon,
-  RocketIcon,
-  GearIcon,
-  LightningBoltIcon,
-  ExternalLinkIcon,
+  ArrowRightIcon,
+  BarChartIcon,
+  CheckCircledIcon,
+  ClipboardCopyIcon,
   CodeIcon,
   CubeIcon,
-  BarChartIcon,
+
+  FileTextIcon,
+
+  InfoCircledIcon,
+  LightningBoltIcon,
+  MagnifyingGlassIcon,
+
+  RocketIcon,
+  StackIcon,
 } from "@radix-ui/react-icons"
-import { motion, type Variants } from "motion/react"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { PageSkeletonWrapper } from "@/components/skeletons/page-skeleton-wrapper"
+import { DocsSkeleton } from "@/components/skeletons/docs-skeleton"
 
-const containerVariants = {
-  hidden: { opacity: 0 },
-  show: {
-    opacity: 1,
-    transition: { staggerChildren: 0.06 },
-  },
-} satisfies Variants
-
-const itemVariants = {
-  hidden: { opacity: 0, y: 12 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: "easeOut" } },
-} satisfies Variants
-
-const apiEndpoints = [
-  {
-    method: "POST",
-    path: "/api/superset/guest-token",
-    description: "Buat guest token untuk dashboard Superset yang disematkan",
-    status: "direncanakan",
-  },
-  {
-    method: "POST",
-    path: "/api/airflow/dags/{dag_id}/trigger",
-    description: "Jalankan run DAG Airflow",
-    status: "direncanakan",
-  },
-  {
-    method: "GET",
-    path: "/api/airflow/dags/{dag_id}/status",
-    description: "Ambil status run DAG terbaru",
-    status: "direncanakan",
-  },
+const sections = [
+  { id: "overview", label: "Gambaran umum" },
+  { id: "quick-start", label: "Alur kerja" },
+  { id: "architecture", label: "Arsitektur" },
+  { id: "metadata", label: "Metadata dan quality" },
+  { id: "api", label: "Referensi API" },
+  { id: "runbook", label: "Runbook" },
 ]
 
 const architecture = [
   {
     icon: CubeIcon,
-    title: "PostgreSQL",
-    description: "Data warehouse (skema mentah) + data mart (skema mart)",
-    tech: "PostgreSQL",
+    name: "PostgreSQL",
+    role: "Storage dan metadata plane",
+    detail: "Schema raw menyimpan input. Schema mart menyimpan hasil transformasi. Schema app menyimpan metadata, quality, pipeline, dan dependency.",
   },
   {
     icon: RocketIcon,
-    title: "Apache Airflow",
-    description: "Orkestrasi pipeline ETL dengan run DAG terjadwal",
-    tech: "Airflow",
+    name: "Apache Airflow",
+    role: "Orkestrasi pipeline",
+    detail: "Menjalankan DAG, mengatur retry, dan melaporkan status run kembali ke EduPulse.",
   },
   {
     icon: BarChartIcon,
-    title: "Apache Superset",
-    description: "Pembangun dashboard BI dengan analitik tersemat",
-    tech: "Superset",
+    name: "Apache Superset",
+    role: "BI dan visualisasi",
+    detail: "Menyajikan dashboard dari mart. Dependency dashboard dipakai untuk menghitung impact saat data bermasalah.",
   },
   {
     icon: CodeIcon,
-    title: "FastAPI",
-    description: "Proksi API backend untuk integrasi Superset/Airflow",
-    tech: "Python",
+    name: "FastAPI",
+    role: "API dan orchestration layer",
+    detail: "Menghubungkan frontend, PostgreSQL, Airflow, Superset, quality service, lineage, dan AI evidence.",
   },
   {
-    icon: GearIcon,
-    title: "Next.js",
-    description: "Aplikasi web frontend dengan dashboard tersemat",
-    tech: "TypeScript",
+    icon: StackIcon,
+    name: "Next.js",
+    role: "Workspace pengguna",
+    detail: "Menyediakan dataset, pipeline, dashboard, lineage, control tower, dan AI analytics.",
   },
 ]
 
-const phases = [
-  {
-    phase: "Fase 0",
-    title: "PoC",
-    description: "Muat CSV OULAD ke PostgreSQL, buat DAG Airflow pertama, bangun dashboard Superset",
-    status: "in-progress",
-  },
-  {
-    phase: "Fase 1",
-    title: "Integrasi Web",
-    description: "Scaffold Next.js + FastAPI, sematkan dashboard Superset melalui guest token",
-    status: "pending",
-  },
-  {
-    phase: "Fase 2",
-    title: "Kontrol Pipeline",
-    description: "Jalankan run DAG dari aplikasi web, pantau status pipeline dengan polling",
-    status: "pending",
-  },
-  {
-    phase: "Fase 3",
-    title: "Penguatan",
-    description: "Sistem autentikasi, keamanan level baris, Docker Compose, dokumentasi lengkap",
-    status: "pending",
-  },
+const endpoints = [
+  { method: "GET", path: "/api/datasets", group: "Dataset", detail: "Daftar tabel raw beserta row count dan status quality." },
+  { method: "GET", path: "/api/datasets/mart", group: "Dataset", detail: "Daftar tabel mart, freshness, quality, dan waktu build terakhir." },
+  { method: "GET", path: "/api/datasets/{schema}.{table}/quality", group: "Quality", detail: "Baca asset metadata, column metadata, dan hasil quality check." },
+  { method: "POST", path: "/api/datasets/{schema}.{table}/quality/run", group: "Quality", detail: "Jalankan ulang quality check untuk raw atau mart table." },
+  { method: "GET", path: "/api/metadata/assets", group: "Metadata", detail: "Daftar seluruh asset yang terdaftar pada metadata plane." },
+  { method: "GET", path: "/api/metadata/assets/{schema}.{table}", group: "Metadata", detail: "Detail asset, kolom, dan quality result." },
+  { method: "GET", path: "/api/metadata/metrics", group: "Metadata", detail: "Daftar metric definition yang dapat dipakai lintas analisis." },
+  { method: "POST", path: "/api/metadata/metrics", group: "Metadata", detail: "Daftarkan metric dengan formula, grain, unit, dan source asset." },
+  { method: "GET", path: "/api/home/summary", group: "Control tower", detail: "Pipeline health, mart freshness, impact dashboard, issue quality, dan AI readiness." },
+  { method: "POST", path: "/api/ai/chat/stream", group: "AI evidence", detail: "Stream jawaban AI dan event evidence dari dashboard aktif." },
 ]
+
+const qualityStates = [
+  { state: "passed", label: "Passed", detail: "Semua check yang dijalankan memenuhi batas." },
+  { state: "warning", label: "Warning", detail: "Ada anomali yang perlu ditinjau, tetapi asset belum dianggap gagal." },
+  { state: "failed", label: "Failed", detail: "Ada check kritikal yang gagal, misalnya asset kosong." },
+  { state: "unknown", label: "Unknown", detail: "Metadata tersedia, tetapi quality check belum pernah dijalankan." },
+]
+
+const reveal = {
+  hidden: { opacity: 0, y: 12 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.45, ease: [0.16, 1, 0.3, 1] as const } },
+}
+
+function scrollToSection(id: string) {
+  document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" })
+}
 
 export default function DocsPage() {
+  const reduceMotion = useReducedMotion()
+  const [query, setQuery] = React.useState("")
+  const [copiedPath, setCopiedPath] = React.useState<string | null>(null)
+
+  const filteredEndpoints = React.useMemo(() => {
+    const normalized = query.trim().toLowerCase()
+    if (!normalized) return endpoints
+    return endpoints.filter((endpoint) =>
+      `${endpoint.method} ${endpoint.path} ${endpoint.group} ${endpoint.detail}`.toLowerCase().includes(normalized),
+    )
+  }, [query])
+
+  async function copyPath(path: string) {
+    await navigator.clipboard.writeText(path)
+    setCopiedPath(path)
+    window.setTimeout(() => setCopiedPath(null), 1600)
+  }
+
+  const motionProps = reduceMotion
+    ? { initial: false, whileInView: undefined, viewport: undefined }
+    : { initial: "hidden", whileInView: "visible", viewport: { once: true, amount: 0.12 } }
+
   return (
     <PageSkeletonWrapper skeleton={<DocsSkeleton />}>
-    <motion.div
-      variants={containerVariants}
-      initial="hidden"
-      animate="show"
-      className="space-y-8 max-w-7xl mx-auto"
-    >
-      {/* Header */}
-      <motion.div variants={itemVariants} className="space-y-2">
-        <div className="flex items-center gap-3">
-          <div className="flex items-center justify-center size-10 rounded-xl bg-pulse/10 border border-pulse/20">
-            <FileTextIcon className="size-5 text-pulse" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">Dokumentasi</h1>
-            <p className="text-sm text-muted-foreground">
-              Ikhtisar proyek, arsitektur, dan referensi API
-            </p>
-          </div>
-        </div>
-      </motion.div>
-
-      <motion.div variants={itemVariants}>
-        <Separator />
-      </motion.div>
-
-      {/* Project Overview */}
-      <motion.div variants={itemVariants}>
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Ikhtisar Proyek</CardTitle>
-            <CardDescription>Apa itu EduPulse Analytics?</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-sm text-muted-foreground leading-relaxed">
-              EduPulse Analytics adalah proyek portofolio teknis pribadi yang mensimulasikan alur kerja platform data modern.
-              Data mentah memasuki data warehouse, diproses secara terjadwal melalui orkestrator, disajikan melalui data mart,
-              divisualisasikan melalui alat BI, dan diakses melalui aplikasi web kustom.
-            </p>
-            <div className="flex flex-wrap gap-2">
-              <Badge variant="secondary">Next.js</Badge>
-              <Badge variant="secondary">FastAPI</Badge>
-              <Badge variant="secondary">PostgreSQL</Badge>
-              <Badge variant="secondary">Apache Airflow</Badge>
-              <Badge variant="secondary">Apache Superset</Badge>
+      <div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-[190px_minmax(0,1fr)]">
+        <aside className="hidden lg:block">
+          <div className="sticky top-6 space-y-6">
+            <div className="flex items-center gap-2 text-sm font-semibold">
+              <FileTextIcon className="size-4 text-pulse" />
+              Dokumentasi
             </div>
-          </CardContent>
-        </Card>
-      </motion.div>
-
-      {/* Architecture */}
-      <motion.div variants={itemVariants}>
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Arsitektur</CardTitle>
-            <CardDescription>Komponen platform dan alur data</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {architecture.map((item) => (
-                <div key={item.title} className="flex items-start gap-3 p-3 rounded-lg border hover:border-pulse/30 transition-colors">
-                  <div className="size-9 rounded-md bg-pulse/10 flex items-center justify-center shrink-0">
-                    <item.icon className="size-4 text-pulse" />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-medium">{item.title}</p>
-                      <Badge variant="outline" className="text-[10px] font-mono">{item.tech}</Badge>
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-0.5">{item.description}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      </motion.div>
-
-      {/* Development Phases */}
-      <motion.div variants={itemVariants}>
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Fase Pengembangan</CardTitle>
-            <CardDescription>Roadmap proyek dan kemajuan saat ini</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {phases.map((phase) => (
-              <div key={phase.phase} className="flex items-start gap-4 p-3 rounded-lg border">
-                <div className="flex flex-col items-center">
-                  <div className={`size-8 rounded-full flex items-center justify-center text-xs font-bold ${
-                    phase.status === "in-progress"
-                      ? "bg-pulse/15 text-pulse"
-                      : "bg-muted text-muted-foreground"
-                  }`}>
-                    {phase.phase.split(" ")[1]}
-                  </div>
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm font-medium">{phase.title}</p>
-                    <Badge
-                      variant={phase.status === "in-progress" ? "pulse" : "secondary"}
-                      className="text-[10px]"
-                    >
-                      {phase.status}
-                    </Badge>
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-0.5">{phase.description}</p>
-                </div>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      </motion.div>
-
-      {/* API Endpoints */}
-      <motion.div variants={itemVariants}>
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Endpoint API</CardTitle>
-            <CardDescription>Endpoint backend FastAPI untuk integrasi frontend</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {apiEndpoints.map((endpoint) => (
-              <div key={endpoint.path} className="flex items-center gap-3 p-3 rounded-lg border font-mono text-sm">
-                <Badge
-                  variant={endpoint.method === "POST" ? "default" : "secondary"}
-                  className="text-[10px] shrink-0"
+            <nav aria-label="Bagian dokumentasi" className="space-y-1 border-l border-border pl-3">
+              {sections.map((section) => (
+                <Button
+                  key={section.id}
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => scrollToSection(section.id)}
+                  className="h-auto w-full justify-start rounded-md px-2 py-1.5 text-left text-xs font-normal text-muted-foreground hover:bg-muted hover:text-foreground"
                 >
-                  {endpoint.method}
-                </Badge>
-                <code className="text-xs flex-1 truncate">{endpoint.path}</code>
-                <Badge variant="outline" className="text-[10px] shrink-0">{endpoint.status}</Badge>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      </motion.div>
+                  {section.label}
+                </Button>
+              ))}
+            </nav>
+            <div className="border-t border-border pt-4 text-[11px] leading-relaxed text-muted-foreground">
+              Dokumen ini mengikuti alur implementasi EduPulse saat ini.
+            </div>
+          </div>
+        </aside>
 
-      {/* Dataset */}
-      <motion.div variants={itemVariants}>
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Dataset</CardTitle>
-            <CardDescription>OULAD - Open University Learning Analytics Dataset</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+        <main className="min-w-0 space-y-14">
+          <motion.header {...motionProps} variants={reveal} id="overview" className="scroll-mt-8 space-y-5">
+            <div className="flex items-center gap-2 text-xs font-mono uppercase tracking-[0.16em] text-pulse">
+              <span className="size-1.5 rounded-full bg-pulse" aria-hidden="true" />
+              Platform guide
+            </div>
+            <div className="max-w-3xl space-y-3">
+              <h1 className="text-3xl font-semibold tracking-tight">
+                Cara EduPulse menjaga data tetap dapat dipercaya.
+              </h1>
+              <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
+                EduPulse menghubungkan dataset, pipeline, data mart, dashboard, lineage, dan AI dalam satu alur operasional.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
               {[
-                { name: "studentInfo", desc: "Demografi & hasil" },
-                { name: "studentRegistration", desc: "Tanggal pendaftaran" },
-                { name: "studentAssessment", desc: "Nilai penilaian" },
-                { name: "assessments", desc: "Metadata penilaian" },
-                { name: "studentVle", desc: "Log interaksi VLE" },
-                { name: "courses", desc: "Metadata kursus" },
-              ].map((table) => (
-                <div key={table.name} className="p-2 rounded border bg-card/50">
-                  <code className="text-xs font-mono text-pulse">{table.name}</code>
-                  <p className="text-[10px] text-muted-foreground mt-0.5">{table.desc}</p>
+                { label: "Next.js", icon: StackIcon },
+                { label: "FastAPI", icon: CodeIcon },
+                { label: "PostgreSQL", icon: CubeIcon },
+                { label: "Airflow", icon: RocketIcon },
+                { label: "Superset", icon: BarChartIcon },
+              ].map(({ label, icon: Icon }) => (
+                <Badge key={label} variant="outline" className="gap-1.5 rounded-md px-2.5 py-1 font-mono text-[10px]">
+                  <Icon className="size-3" />
+                  {label}
+                </Badge>
+              ))}
+            </div>
+          </motion.header>
+
+          <motion.section {...motionProps} variants={reveal} id="quick-start" className="scroll-mt-8 space-y-5">
+            <SectionHeading title="Alur kerja inti" description="Dari file pertama sampai insight yang memiliki sumber." />
+            <div className="grid gap-px overflow-hidden border border-border bg-border md:grid-cols-5">
+              {[
+                ["01", "Upload", "File masuk ke schema raw."],
+                ["02", "Inspect", "Metadata kolom dan row count dicatat."],
+                ["03", "Transform", "Airflow membangun tabel mart."],
+                ["04", "Validate", "Quality dan freshness diperiksa."],
+                ["05", "Explain", "Dashboard dan AI memakai evidence."],
+              ].map(([number, title, detail]) => (
+                <div key={number} className="bg-background p-4 md:min-h-36">
+                  <span className="font-mono text-[10px] text-muted-foreground">{number}</span>
+                  <h3 className="mt-7 text-sm font-semibold">{title}</h3>
+                  <p className="mt-1 text-xs leading-5 text-muted-foreground">{detail}</p>
                 </div>
               ))}
             </div>
-          </CardContent>
-        </Card>
-      </motion.div>
-
-      {/* Quick Links */}
-      <motion.div variants={itemVariants}>
-        <Card className="border-pulse/20 bg-pulse/5">
-          <CardContent className="flex items-center gap-3 py-4">
-            <LightningBoltIcon className="size-4 text-pulse shrink-0" />
-            <div className="text-sm text-muted-foreground">
-              <span className="font-medium text-foreground">Akses cepat: </span>
-              Kunjungi{" "}
-              <a href="/dashboard" className="text-pulse hover:underline cursor-pointer">Dashboard Analitik</a>{" "}
-              untuk melihat dashboard Superset tersemat, atau{" "}
-              <a href="/pipeline" className="text-pulse hover:underline cursor-pointer">Kontrol Pipeline</a>{" "}
-              untuk menjalankan run ETL.
+            <div className="flex items-start gap-3 border-l-2 border-pulse bg-pulse/5 px-4 py-3 text-sm leading-6">
+              <InfoCircledIcon className="mt-1 size-4 shrink-0 text-pulse" />
+              <p><strong>Pipeline success bukan berarti data sehat.</strong> Status quality dan freshness harus diperiksa terpisah sebelum dashboard atau AI dipakai untuk keputusan.</p>
             </div>
-          </CardContent>
-        </Card>
-      </motion.div>
-    </motion.div>
+          </motion.section>
+
+          <motion.section {...motionProps} variants={reveal} id="architecture" className="scroll-mt-8 space-y-5">
+            <SectionHeading title="Arsitektur platform" description="Setiap komponen punya batas kerja yang jelas." />
+            <div className="divide-y divide-border border-y border-border">
+              {architecture.map(({ icon: Icon, name, role, detail }) => (
+                <div key={name} className="grid gap-3 py-5 md:grid-cols-[180px_170px_1fr] md:items-start">
+                  <div className="flex items-center gap-2 text-sm font-semibold">
+                    <Icon className="size-4 text-pulse" />
+                    {name}
+                  </div>
+                  <p className="text-xs font-medium text-foreground/80">{role}</p>
+                  <p className="max-w-2xl text-sm leading-6 text-muted-foreground">{detail}</p>
+                </div>
+              ))}
+            </div>
+          </motion.section>
+
+          <motion.section {...motionProps} variants={reveal} id="metadata" className="scroll-mt-8 space-y-5">
+            <SectionHeading title="Metadata dan data quality" description="Satu plane untuk menjawab apa datanya, kapan diperbarui, dan layak dipakai atau tidak." />
+            <div className="grid gap-4 md:grid-cols-2">
+              <Card className="rounded-lg border-border shadow-none">
+                <CardContent className="space-y-4 p-5">
+                  <div className="flex items-center gap-2">
+                    <CubeIcon className="size-4 text-pulse" />
+                    <h3 className="text-sm font-semibold">Asset plane</h3>
+                  </div>
+                  <p className="text-sm leading-6 text-muted-foreground">`data_assets` menyimpan identitas asset, owner, row count, freshness, dan quality score.</p>
+                  <div className="space-y-2 font-mono text-xs text-muted-foreground">
+                    <p><span className="text-foreground">raw.</span> sumber upload</p>
+                    <p><span className="text-foreground">mart.</span> hasil pipeline</p>
+                    <p><span className="text-foreground">app.</span> metadata dan operasi</p>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card className="rounded-lg border-border shadow-none">
+                <CardContent className="space-y-4 p-5">
+                  <div className="flex items-center gap-2">
+                    <CheckCircledIcon className="size-4 text-pulse" />
+                    <h3 className="text-sm font-semibold">Quality states</h3>
+                  </div>
+                  <div className="space-y-3">
+                    {qualityStates.map((item) => (
+                      <div key={item.state} className="grid grid-cols-[70px_1fr] gap-3 text-xs">
+                        <Badge variant="outline" className="h-fit justify-center rounded-md px-1.5 py-0.5 font-mono text-[9px]">{item.label}</Badge>
+                        <span className="leading-5 text-muted-foreground">{item.detail}</span>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+            <div className="grid gap-3 border border-border p-4 text-sm md:grid-cols-3">
+              <div><p className="font-mono text-[10px] text-muted-foreground">BI</p><p className="mt-1 leading-5">Lihat mart yang fresh sebelum membaca dashboard.</p></div>
+              <div><p className="font-mono text-[10px] text-muted-foreground">ANALYST</p><p className="mt-1 leading-5">Validasi metric, source asset, dan batas data.</p></div>
+              <div><p className="font-mono text-[10px] text-muted-foreground">ENGINEER</p><p className="mt-1 leading-5">Telusuri lineage dan impact saat pipeline bermasalah.</p></div>
+            </div>
+          </motion.section>
+
+          <motion.section {...motionProps} variants={reveal} id="api" className="scroll-mt-8 space-y-5">
+            <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+              <SectionHeading title="Referensi API" description="Endpoint yang tersedia sekarang, bukan roadmap." />
+              <div className="relative w-full md:w-72">
+                <MagnifyingGlassIcon className="absolute left-3 top-2.5 size-4 text-muted-foreground" />
+                <Input aria-label="Cari endpoint" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Cari endpoint atau fungsi" className="h-9 rounded-md pl-9 text-xs" />
+              </div>
+            </div>
+            <div className="overflow-hidden border border-border">
+              <div className="hidden grid-cols-[76px_minmax(220px,1fr)_130px_36px] gap-3 border-b border-border bg-muted/40 px-4 py-2 font-mono text-[10px] uppercase tracking-wider text-muted-foreground md:grid">
+                <span>Method</span><span>Path</span><span>Area</span><span />
+              </div>
+              {filteredEndpoints.length === 0 ? (
+                <div className="px-4 py-10 text-center text-sm text-muted-foreground">Endpoint tidak ditemukan.</div>
+              ) : filteredEndpoints.map((endpoint) => (
+                <div key={`${endpoint.method}-${endpoint.path}`} className="grid gap-2 border-b border-border px-4 py-3 last:border-0 md:grid-cols-[76px_minmax(220px,1fr)_130px_36px] md:items-center md:gap-3">
+                  <Badge variant={endpoint.method === "POST" ? "default" : "secondary"} className="w-fit rounded-md font-mono text-[10px]">{endpoint.method}</Badge>
+                  <div className="min-w-0"><code className="break-all text-xs">{endpoint.path}</code><p className="mt-1 text-xs leading-5 text-muted-foreground md:hidden">{endpoint.detail}</p></div>
+                  <span className="text-[11px] text-muted-foreground">{endpoint.group}</span>
+                  <Button type="button" variant="ghost" size="icon" className="size-7" aria-label={`Salin ${endpoint.path}`} onClick={() => void copyPath(endpoint.path)}>
+                    {copiedPath === endpoint.path ? <CheckCircledIcon className="size-3.5 text-pulse" /> : <ClipboardCopyIcon className="size-3.5" />}
+                  </Button>
+                  <p className="hidden text-xs leading-5 text-muted-foreground md:col-span-3 md:block">{endpoint.detail}</p>
+                </div>
+              ))}
+            </div>
+          </motion.section>
+
+          <motion.section {...motionProps} variants={reveal} id="runbook" className="scroll-mt-8 space-y-5">
+            <SectionHeading title="Runbook singkat" description="Urutan pemeriksaan saat hasil belum sesuai." />
+            <div className="space-y-0 border-y border-border">
+              {[
+                ["Upload gagal", "Periksa format file, ukuran, nama tabel, lalu lihat pesan backend. Jika gagal saat metadata sync, cek startup schema app."],
+                ["Mart kosong", "Buka detail asset, jalankan quality check, lalu periksa pipeline run dan query destination table."],
+                ["Dashboard stale", "Bandingkan last built time dengan freshness status. Telusuri dependency dashboard ke mart terkait."],
+                ["Jawaban AI kurang yakin", "Buka evidence panel. Periksa coverage, source chart, row availability, dan limitation sebelum memakai rekomendasi."],
+              ].map(([title, detail], index) => (
+                <div key={title} className="grid gap-2 border-b border-border py-4 last:border-0 md:grid-cols-[190px_1fr]">
+                  <div className="flex items-center gap-2 text-sm font-medium"><span className="font-mono text-[10px] text-muted-foreground">0{index + 1}</span>{title}</div>
+                  <p className="text-sm leading-6 text-muted-foreground">{detail}</p>
+                </div>
+              ))}
+            </div>
+            <div className="flex flex-wrap gap-3 border border-border bg-muted/20 p-4">
+              <Button type="button" size="sm" className="rounded-md" onClick={() => window.location.assign("/golden-path")}><RocketIcon className="mr-2 size-3.5" />Jalankan Golden Path</Button>
+              <Button type="button" size="sm" variant="outline" className="rounded-md" onClick={() => window.location.assign("/datasets")}><CubeIcon className="mr-2 size-3.5" />Buka dataset</Button>
+              <Button type="button" size="sm" variant="outline" className="rounded-md" onClick={() => window.location.assign("/lineage")}><ArrowRightIcon className="mr-2 size-3.5" />Lihat lineage</Button>
+              <Button type="button" size="sm" variant="outline" className="rounded-md" onClick={() => window.location.assign("/ai-analytics")}><LightningBoltIcon className="mr-2 size-3.5" />Coba AI evidence</Button>
+            </div>
+          </motion.section>
+        </main>
+      </div>
     </PageSkeletonWrapper>
+  )
+}
+
+function SectionHeading({ title, description }: { title: string; description: string }) {
+  return (
+    <div className="max-w-2xl space-y-1.5">
+      <h2 className="text-3xl font-semibold tracking-tight">{title}</h2>
+      <p className="text-sm leading-6 text-muted-foreground">{description}</p>
+    </div>
   )
 }

@@ -13,9 +13,12 @@ import {
   TableIcon,
   LoopIcon,
   GlobeIcon,
+  PersonIcon,
 } from "@radix-ui/react-icons"
 import { Separator } from "@/components/ui/separator"
 import { DomainSwitcher } from "./domain-switcher"
+import { useDomain } from "@/lib/domain-context"
+import { getCurrentUser, hasMinimumRole } from "@/lib/auth"
 
 const navItems = [
   {
@@ -54,6 +57,11 @@ const navItems = [
     icon: GlobeIcon,
   },
   {
+    label: "Golden Path",
+    href: "/golden-path",
+    icon: LightningBoltIcon,
+  },
+  {
     label: "Dokumentasi",
     href: "/docs",
     icon: FileTextIcon,
@@ -63,10 +71,18 @@ const navItems = [
     href: "/settings",
     icon: GearIcon,
   },
+  {
+    label: "Kelola User",
+    href: "/admin/users",
+    icon: PersonIcon,
+    adminOnly: true,
+  },
 ]
 
 export function Sidebar() {
   const pathname = usePathname()
+  const { activeDomainId } = useDomain()
+  const isAdmin = hasMinimumRole(getCurrentUser()?.role, "admin")
 
   return (
     <aside className="hidden lg:flex lg:flex-col lg:w-60 lg:border-r bg-card/50 backdrop-blur-sm shrink-0 h-full sticky top-0">
@@ -84,7 +100,9 @@ export function Sidebar() {
       </div>
 
       <nav className="flex-1 px-3 py-2 space-y-1 overflow-y-auto no-scrollbar">
-        {navItems.map((item) => {
+        {navItems
+          .filter((item) => !(activeDomainId !== null && item.href === "/domains") && (!item.adminOnly || isAdmin))
+          .map((item) => {
           const isActive = pathname === item.href
           return (
             <Link

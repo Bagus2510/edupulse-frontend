@@ -39,7 +39,7 @@ import {
 import { motion, type Variants } from "motion/react"
 import { toast } from "sonner"
 import { API_URL } from "@/lib/constants"
-import { getAccessToken } from "@/lib/auth"
+import { getAccessToken, getCurrentUser, hasMinimumRole } from "@/lib/auth"
 
 interface DatasetTable {
   schema_name: string
@@ -50,6 +50,10 @@ interface DatasetTable {
   last_built_at?: string | null
   freshness?: "fresh" | "stale" | "never_built" | null
   meta_row_count?: number | null
+  quality_status?: "unknown" | "passed" | "warning" | "failed"
+  quality_score?: number | null
+  freshness_status?: string | null
+  last_loaded_at?: string | null
 }
 
 interface TableDetail {
@@ -57,6 +61,10 @@ interface TableDetail {
   table: string
   row_count: number
   columns: { name: string; type: string }[]
+  quality?: {
+    asset: { quality_status: string; quality_score: number | null; freshness_status: string }
+    checks: { check_name: string; status: string; severity: string; message: string }[]
+  }
 }
 
 const containerVariants = {
@@ -75,7 +83,31 @@ function formatNumber(n: number): string {
   return n.toString()
 }
 
+function DatasetQualityBadge({ dataset }: { dataset: DatasetTable }) {
+  const status = dataset.quality_status ?? "unknown"
+  const tone = status === "passed"
+    ? "text-emerald-500 border-emerald-500/30 bg-emerald-500/5"
+    : status === "warning"
+      ? "text-amber-500 border-amber-500/30 bg-amber-500/5"
+      : status === "failed"
+        ? "text-red-500 border-red-500/30 bg-red-500/5"
+        : "text-muted-foreground border-border"
+  return (
+    <div className="flex items-center gap-2">
+      <span className={`text-[10px] uppercase tracking-wide rounded-full px-2 py-0.5 border ${tone}`}>
+        {status === "unknown" ? "Quality belum dicek" : `Quality ${status}`}
+      </span>
+      {dataset.quality_score !== null && dataset.quality_score !== undefined && (
+        <span className="text-[10px] font-mono text-muted-foreground">{dataset.quality_score.toFixed(0)}/100</span>
+      )}
+    </div>
+  )
+}
+
 export default function DatasetsPage() {
+  const user = getCurrentUser()
+  const canUpload = hasMinimumRole(user?.role, "editor")
+  const canDelete = hasMinimumRole(user?.role, "admin")
   const [datasets, setDatasets] = React.useState<DatasetTable[]>([])
   const [martDatasets, setMartDatasets] = React.useState<DatasetTable[]>([])
   const [loading, setLoading] = React.useState(true)
@@ -94,7 +126,7 @@ export default function DatasetsPage() {
     fetchMartDatasets()
   }, [])
 
-  const fetchDatasets = async () => {
+  async function fetchDatasets() {
     try {
       const token = getAccessToken()
       const res = await fetch(`${API_URL}/api/datasets`, {
@@ -109,7 +141,7 @@ export default function DatasetsPage() {
     }
   }
 
-  const fetchMartDatasets = async () => {
+  async function fetchMartDatasets() {
     try {
       const token = getAccessToken()
       const res = await fetch(`${API_URL}/api/datasets/mart`, {
@@ -133,7 +165,11 @@ export default function DatasetsPage() {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       })
       const data = await res.json()
-      setDetailInfo(data)
+      const qualityRes = await fetch(`${API_URL}/api/datasets/${ds.full_name}/quality`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+      const quality = qualityRes.ok ? await qualityRes.json() : null
+      setDetailInfo({ ...data, quality })
     } catch {
       // ignore
     } finally {
@@ -212,23 +248,18 @@ export default function DatasetsPage() {
         animate="show"
         className="space-y-6 max-w-7xl mx-auto"
       >
-        <motion.div variants={itemVariants} className="space-y-1">
-          <h1 className="text-2xl font-bold tracking-tight">Dataset</h1>
-          <p className="text-sm text-muted-foreground">
-            Upload CSV/Excel ke schema raw untuk digunakan di pipeline
-          </p>
-        </motion.div>
-
-        <motion.div variants={itemVariants}>
-          <Separator />
+        <motion.div variants={itemVariants} className="space-y-2 border-b border-border pb-5">
+          <div className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-[0.16em] text-pulse"><TableIcon className="size-3" />Data catalog</div>
+          <h1 className="text-3xl font-semibold tracking-tight">Dataset</h1>
+          <p className="text-sm text-muted-foreground">Kelola raw input, mart output, metadata, freshness, dan quality.</p>
         </motion.div>
 
         <motion.div variants={itemVariants}>
           <Card
-            className={`border-border/60 transition-colors ${dragOver ? "border-pulse bg-pulse/5" : ""}`}
-            onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
+            className={`rounded-lg border-border/60 shadow-none transition-colors ${dragOver ? "border-pulse bg-pulse/5" : ""}`}
+            onDragOver={(e) => { if (canUpload) { e.preventDefault(); setDragOver(true) } }}
             onDragLeave={() => setDragOver(false)}
-            onDrop={onDrop}
+            onDrop={(e) => { if (canUpload) onDrop(e) }}
           >
             <CardContent className="py-8">
               <div className="flex flex-col items-center gap-4 text-center">
@@ -237,17 +268,17 @@ export default function DatasetsPage() {
                 </div>
                 <div>
                   <p className="text-sm font-medium">
-                    {uploading ? "Mengupload..." : "Drag & drop file atau klik untuk upload"}
+                    {!canUpload ? "Role editor diperlukan untuk upload" : uploading ? "Mengupload..." : "Drag & drop file atau klik untuk upload"}
                   </p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    CSV, XLSX, XLS — maksimal 100 MB
+                    CSV, XLSX, XLS. Maksimal 100 MB.
                   </p>
                 </div>
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={uploading}
+                  onClick={() => { if (canUpload) fileInputRef.current?.click() }}
+                  disabled={uploading || !canUpload}
                 >
                   {uploading ? (
                     <ReloadIcon className="size-3.5 mr-1.5 animate-spin" />
@@ -324,15 +355,17 @@ export default function DatasetsPage() {
                             <p className="text-xs text-muted-foreground font-mono">{ds.full_name}</p>
                           </div>
                         </div>
-                        <Button
+                        {canDelete && <Button
                           variant="ghost"
                           size="icon"
                           className="size-7 text-muted-foreground hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
-                          onClick={(e) => { e.stopPropagation(); setDeleteTarget(ds.full_name) }}
+                          onClick={(e) => { e.stopPropagation(); if (canDelete) setDeleteTarget(ds.full_name) }}
+                          disabled={!canDelete}
                         >
                           <TrashIcon className="size-3.5" />
-                        </Button>
+                        </Button>}
                       </div>
+                      <DatasetQualityBadge dataset={ds} />
                       <div className="flex items-center gap-3 mt-3 pt-3 border-t border-border/40">
                         <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                           <RowsIcon className="size-3" />
@@ -412,6 +445,7 @@ export default function DatasetsPage() {
                           </div>
                         </div>
                       </div>
+                      <DatasetQualityBadge dataset={ds} />
                       <div className="flex items-center gap-3 mt-3 pt-3 border-t border-border/40">
                         <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                           <RowsIcon className="size-3" />
@@ -468,6 +502,30 @@ export default function DatasetsPage() {
                   <span className="text-muted-foreground">kolom</span>
                 </div>
               </div>
+
+              {detailInfo.quality && (
+                <div className="rounded-lg border border-border/60 bg-muted/20 p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-semibold">Data quality</p>
+                      <p className="mt-0.5 text-[10px] text-muted-foreground">Status metadata dan quality gate terakhir</p>
+                    </div>
+                    <Badge variant={detailInfo.quality.asset.quality_status === "passed" ? "success" : detailInfo.quality.asset.quality_status === "failed" ? "destructive" : "warning"}>
+                      {detailInfo.quality.asset.quality_status}
+                    </Badge>
+                  </div>
+                  <div className="mt-3 grid grid-cols-2 gap-2 text-[11px]">
+                    <div><span className="text-muted-foreground">Score</span><p className="font-mono font-semibold">{detailInfo.quality.asset.quality_score ?? "-"}</p></div>
+                    <div><span className="text-muted-foreground">Freshness</span><p className="font-medium">{detailInfo.quality.asset.freshness_status}</p></div>
+                  </div>
+                  {detailInfo.quality.checks.slice(0, 4).map((check) => (
+                    <div key={check.check_name} className="mt-2 flex items-start gap-2 text-[10px]">
+                      <span className={check.status === "passed" ? "text-emerald-500" : check.status === "warning" ? "text-amber-500" : "text-red-400"}>●</span>
+                      <span className="text-muted-foreground">{check.message}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
 
               <div className="space-y-1.5">
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Kolom</p>

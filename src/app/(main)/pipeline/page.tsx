@@ -3,7 +3,7 @@
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Separator } from "@/components/ui/separator"
+
 import {
   RocketIcon,
   ReloadIcon,
@@ -138,7 +138,7 @@ export default function PipelinePage() {
     }, 3000)
   }
 
-  const fetchPipelines = async () => {
+  async function fetchPipelines() {
     try {
       const url = activeDomainId
         ? `${API_URL}/api/pipelines?domain_id=${activeDomainId}`
@@ -221,24 +221,19 @@ export default function PipelinePage() {
       animate="show"
       className="space-y-6 max-w-7xl mx-auto"
     >
-      <motion.div variants={itemVariants} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="space-y-1">
-          <h1 className="text-2xl font-bold tracking-tight">Pipeline ETL</h1>
-          <p className="text-sm text-muted-foreground">
-            Buat, jalankan, dan pantau pipeline transformasi data
-          </p>
+      <motion.div variants={itemVariants} className="flex flex-col gap-4 border-b border-border pb-5 sm:flex-row sm:items-end sm:justify-between">
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-[0.16em] text-pulse"><RocketIcon className="size-3" />Data operations</div>
+          <h1 className="text-3xl font-semibold tracking-tight">Pipeline ETL</h1>
+          <p className="text-sm text-muted-foreground">Buat, jalankan, dan pantau transformasi data.</p>
         </div>
         <Button
           onClick={() => router.push("/pipeline/builder")}
-          className="bg-pulse hover:bg-pulse/90 text-background"
+          className="rounded-md bg-pulse hover:bg-pulse/90 text-background"
         >
           <PlusIcon className="size-3.5 mr-1.5" />
           Buat Pipeline
         </Button>
-      </motion.div>
-
-      <motion.div variants={itemVariants}>
-        <Separator />
       </motion.div>
 
       {/* Pipeline List */}
@@ -246,7 +241,7 @@ export default function PipelinePage() {
         {pipelines.map((pipeline) => (
           <motion.div key={pipeline.id} variants={itemVariants}>
             <Card
-              className="group cursor-pointer border-border/40 hover:border-pulse/30 transition-all duration-200 py-0"
+              className="group cursor-pointer rounded-lg border-border/60 shadow-none hover:border-pulse/40 transition-all duration-200 py-0"
               onClick={() => router.push(`/pipeline/${pipeline.id}`)}
             >
               <CardContent className="p-0">
@@ -289,9 +284,9 @@ export default function PipelinePage() {
                         </div>
                         <div className="text-right min-w-[100px]">
                           <p className="font-mono text-[10px]">
-                            {pipeline.last_run_at
+                              {pipeline.last_run_at
                               ? new Date(pipeline.last_run_at).toLocaleString("id-ID", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })
-                              : "—"}
+                              : "-"}
                           </p>
                           <p className="text-[10px]">terakhir jalan</p>
                         </div>
@@ -335,7 +330,7 @@ export default function PipelinePage() {
                           title={pipeline.is_active ? "Nonaktifkan" : "Aktifkan"}
                         >
                           {pipeline.is_active ? (
-                            <svg className="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                            <ClockIcon className="size-3.5" />
                           ) : (
                             <PlayIcon className="size-3.5" />
                           )}

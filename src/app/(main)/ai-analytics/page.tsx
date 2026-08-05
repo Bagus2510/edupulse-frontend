@@ -48,6 +48,8 @@ import {
   PlusIcon,
   ChatBubbleIcon,
   ChevronDownIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
   TrashIcon as TrashIcon2,
   OpenInNewWindowIcon,
   ExitFullScreenIcon,
@@ -121,7 +123,39 @@ function useTypewriter(fullText: string, animate: boolean, onComplete?: () => vo
   return animate ? displayed : fullText
 }
 
-function SimpleMarkdown({ content, isStreaming = false, animate = false, onComplete }: { content: string; isStreaming?: boolean; animate?: boolean; onComplete?: () => void }) {
+function EvidencePanel({ evidence }: { evidence: ChatEvidence }) {
+  const confidence = Math.round(evidence.confidence * 100)
+  return (
+    <div className="mt-4 rounded-md border border-pulse/20 bg-pulse/[0.03] p-3 text-[11px]">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <span className="font-semibold uppercase tracking-[0.14em] text-pulse">Evidence source</span>
+        <a href={evidence.lineage_url} className="text-muted-foreground underline-offset-2 hover:text-pulse hover:underline">
+          Lihat lineage
+        </a>
+      </div>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <div><p className="text-muted-foreground">Coverage</p><p className="font-medium">{evidence.data_coverage}</p></div>
+        <div><p className="text-muted-foreground">Rows tersedia</p><p className="font-medium font-mono">{evidence.total_rows_available.toLocaleString()}</p></div>
+        <div><p className="text-muted-foreground">Confidence</p><p className="font-medium">{confidence}%</p></div>
+        <div><p className="text-muted-foreground">Status</p><p className={`font-medium ${evidence.context_status === "ready" ? "text-emerald-500" : "text-amber-500"}`}>{evidence.context_status === "ready" ? "Ready" : "Limited"}</p></div>
+      </div>
+      {evidence.source_charts.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {evidence.source_charts.map((chart) => (
+            <span key={`${chart.name}-${chart.viz_type}`} className="rounded-md border border-border/60 bg-background/40 px-2 py-1 text-muted-foreground">
+              {chart.name} <span className="font-mono text-foreground/70">({chart.rows})</span>
+            </span>
+          ))}
+        </div>
+      )}
+      <ul className="mt-2 space-y-1 text-muted-foreground">
+        {evidence.limitations.map((limitation) => <li key={limitation}>• {limitation}</li>)}
+      </ul>
+    </div>
+  )
+}
+
+function SimpleMarkdown({ content, isStreaming = false, animate = false, onComplete, evidence }: { content: string; isStreaming?: boolean; animate?: boolean; onComplete?: () => void; evidence?: ChatEvidence }) {
   const displayed = useTypewriter(content, animate, onComplete)
   const normalized = displayed.replace(/\r\n?/g, "\n")
   const lines = normalized.split("\n")
@@ -177,6 +211,7 @@ function SimpleMarkdown({ content, isStreaming = false, animate = false, onCompl
     <div className="text-sm leading-relaxed space-y-1">
       {elements}
       {isStreaming && <StreamingCursor />}
+      {evidence && <EvidencePanel evidence={evidence} />}
     </div>
   )
 }
@@ -203,6 +238,17 @@ interface DashboardItem {
   is_default: boolean
   created_at: string
   updated_at: string
+}
+
+interface ChatEvidence {
+  dashboard_uuid: string
+  source_charts: { name: string; viz_type: string; rows: number }[]
+  data_coverage: string
+  total_rows_available: number
+  confidence: number
+  limitations: string[]
+  lineage_url: string
+  context_status: "ready" | "limited"
 }
 
 interface ChatMessage {
@@ -237,7 +283,10 @@ function EmbeddedDashboard({ uuid, title }: { uuid: string; title: string }) {
           fetchGuestToken: async () => {
             const res = await fetch(`${API_URL}/api/superset/guest-token`, {
               method: "POST",
-              headers: { "Content-Type": "application/json" },
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${getAccessToken() || ""}`,
+              },
               body: JSON.stringify({ dashboard_uuid: uuid }),
             })
             if (!res.ok) throw new Error("Gagal mengambil guest token")
@@ -296,6 +345,7 @@ function EmbeddedDashboard({ uuid, title }: { uuid: string; title: string }) {
 
 export default function AiAnalyticsPage() {
   const [dashboards, setDashboards] = React.useState<DashboardItem[]>([])
+  const [dashboardPage, setDashboardPage] = React.useState(0)
   const [selectedDashboard, setSelectedDashboard] = React.useState<DashboardItem | null>(null)
   const [loading, setLoading] = React.useState(true)
   const [deleteTarget, setDeleteTarget] = React.useState<DashboardItem | null>(null)
@@ -319,6 +369,7 @@ export default function AiAnalyticsPage() {
   const [sessionId, setSessionId] = React.useState(() => crypto.randomUUID())
   const [sessions, setSessions] = React.useState<ChatSession[]>([])
   const [typingMessageIndex, setTypingMessageIndex] = React.useState<number | null>(null)
+  const [activeEvidence, setActiveEvidence] = React.useState<ChatEvidence | null>(null)
   const networkFinishedRef = React.useRef(false)
   const typewriterFinishedRef = React.useRef(false)
   const chatEndRef = React.useRef<HTMLDivElement>(null)
@@ -343,11 +394,13 @@ export default function AiAnalyticsPage() {
     if (chatExpandOpen) chatExpandEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [chatMessages, chatExpandOpen])
 
-  const fetchDashboards = async () => {
+  async function fetchDashboards() {
     try {
-      const res = await fetch(`${API_URL}/api/dashboards`)
+      const token = getAccessToken()
+      const res = await fetch(`${API_URL}/api/dashboards`, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
       const data = await res.json()
       setDashboards(data)
+      setDashboardPage(0)
       if (data.length > 0) {
         setSelectedDashboard(data[0])
       }
@@ -358,7 +411,7 @@ export default function AiAnalyticsPage() {
     }
   }
 
-  const fetchSessions = async (dashboardUuid?: string | null) => {
+  async function fetchSessions(dashboardUuid?: string | null) {
     const token = getAccessToken()
     const headers: Record<string, string> = {}
     if (token) headers["Authorization"] = `Bearer ${token}`
@@ -397,6 +450,7 @@ export default function AiAnalyticsPage() {
         setSessionId(sid)
         // History is rendered immediately; only a newly received response types out.
         setTypingMessageIndex(null)
+        setActiveEvidence(null)
       }
     } catch {
       // ignore
@@ -419,6 +473,7 @@ export default function AiAnalyticsPage() {
     setSessionId(crypto.randomUUID())
     setChatMessages([])
     setTypingMessageIndex(null)
+    setActiveEvidence(null)
   }
 
   const handleSendMessage = async () => {
@@ -434,6 +489,7 @@ export default function AiAnalyticsPage() {
     networkFinishedRef.current = false
     typewriterFinishedRef.current = false
     setTypingMessageIndex(chatMessages.length + 1)
+    setActiveEvidence(null)
     setChatMessages((prev) => [...prev, userMessage])
     setChatInput("")
     setIsSending(true)
@@ -480,8 +536,14 @@ export default function AiAnalyticsPage() {
         const messages = buffer.split("\n\n")
         buffer = messages.pop() || ""
         for (const msg of messages) {
+          const eventLine = msg.split("\n").find(l => l.startsWith("event: ")) || ""
           const dataLine = msg.split("\n").find(l => l.startsWith("data: ")) || ""
+          const eventName = eventLine.slice(7).trim()
           const chunk = dataLine.slice(6).replace(/\r$/, "")
+          if (eventName === "evidence") {
+            try { setActiveEvidence(JSON.parse(chunk) as ChatEvidence) } catch { /* ignore malformed metadata */ }
+            continue
+          }
           if (chunk === "[DONE]") break
           if (!chunk) continue
           try {
@@ -599,98 +661,80 @@ export default function AiAnalyticsPage() {
       className="space-y-6 max-w-7xl mx-auto"
     >
       {/* Header */}
-      <motion.div variants={itemVariants} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="space-y-1">
-          <h1 className="text-2xl font-bold tracking-tight">Analisis AI</h1>
-          <p className="text-sm text-muted-foreground">
-            Chat dengan AI untuk menganalisis data dashboard
+      <motion.div variants={itemVariants} className="flex flex-col gap-4 border-b border-border pb-5 sm:flex-row sm:items-end sm:justify-between">
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-[0.16em] text-pulse">
+            <LightningBoltIcon className="size-3" />
+            Evidence workspace
+          </div>
+          <h1 className="text-3xl font-semibold tracking-tight">Analisis AI</h1>
+          <p className="max-w-xl text-sm leading-6 text-muted-foreground">
+            Tanya data dashboard dengan konteks yang dapat ditelusuri, bukan jawaban tanpa sumber.
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Badge variant="outline" className="gap-1.5 text-[10px]">
-            <LightningBoltIcon className="size-3" />
-            Gemini 2.5 Flash
-          </Badge>
-        </div>
+        <Badge variant="outline" className="w-fit gap-1.5 rounded-md px-2.5 py-1 font-mono text-[10px]">
+          <LightningBoltIcon className="size-3" />
+          Gemini 2.5 Flash
+        </Badge>
       </motion.div>
 
-      <motion.div variants={itemVariants}>
-        <Separator />
-      </motion.div>
-
-      {/* Dashboard Selector - Elongated Cards */}
+      {/* Dashboard context switcher */}
       <motion.div variants={itemVariants} className="space-y-2">
-        {dashboards.map((dashboard) => (
-          <Card
-            key={dashboard.id}
-            className={`group cursor-pointer transition-all duration-200 ${
-              selectedDashboard?.id === dashboard.id
-                ? "border-pulse/50 bg-pulse/5 shadow-sm"
-                : "hover:border-muted-foreground/20 hover:shadow-sm"
-            }`}
-            onClick={() => {
-              // Chat history is dashboard-scoped; never reuse the old session.
-              setSelectedDashboard(dashboard)
-              setSessionId(crypto.randomUUID())
-              setChatMessages([])
-              setTypingMessageIndex(null)
-              fetchSessions(dashboard.superset_uuid)
-            }}
-          >
-            <CardContent className="px-3 py-2">
-              <div className="flex items-center gap-3">
-                <div className={`size-10 rounded-lg flex items-center justify-center shrink-0 ${
-                  selectedDashboard?.id === dashboard.id
-                    ? "bg-pulse/15 text-pulse"
-                    : "bg-muted text-muted-foreground"
-                }`}>
-                  <BarChartIcon className="size-5" />
-                </div>
-
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-0.5">
-                    <h3 className="text-sm font-medium truncate">{dashboard.title}</h3>
-                    <Badge
-                      variant={dashboard.status === "active" ? "success" : "secondary"}
-                      className="shrink-0"
-                    >
-                      {dashboard.status}
-                    </Badge>
+        <div className="flex items-center justify-between">
+          <div><p className="text-xs font-medium">Pilih konteks dashboard</p><p className="mt-0.5 text-[10px] text-muted-foreground">Context menentukan source chart untuk AI</p></div>
+          <span className="font-mono text-[10px] text-muted-foreground">{dashboards.length} tersedia</span>
+        </div>
+        <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
+          {dashboards.slice(dashboardPage * 3, dashboardPage * 3 + 3).map((dashboard) => (
+            <Card
+              key={dashboard.id}
+              className={`group cursor-pointer rounded-md shadow-none transition-all duration-200 ${
+                selectedDashboard?.id === dashboard.id
+                  ? "border-pulse/60 bg-pulse/5"
+                  : "border-border hover:border-pulse/30"
+              }`}
+              onClick={() => {
+                setSelectedDashboard(dashboard)
+                setSessionId(crypto.randomUUID())
+                setChatMessages([])
+                setTypingMessageIndex(null)
+                setActiveEvidence(null)
+                fetchSessions(dashboard.superset_uuid)
+              }}
+            >
+              <CardContent className="px-3 py-2">
+                <div className="flex items-center gap-3">
+                  <div className={`flex size-10 shrink-0 items-center justify-center rounded-lg ${selectedDashboard?.id === dashboard.id ? "bg-pulse/15 text-pulse" : "bg-muted text-muted-foreground"}`}>
+                    <BarChartIcon className="size-5" />
                   </div>
-                  <p className="text-xs text-muted-foreground truncate">
-                    {dashboard.description || "Tidak ada deskripsi"}
-                  </p>
+                  <div className="min-w-0 flex-1">
+                    <div className="mb-0.5 flex items-center gap-2">
+                      <h3 className="truncate text-sm font-medium">{dashboard.title}</h3>
+                      <Badge variant={dashboard.status === "active" ? "success" : "secondary"} className="shrink-0 rounded-md text-[9px]">{dashboard.status}</Badge>
+                    </div>
+                    <p className="truncate text-xs text-muted-foreground">{dashboard.description || "Tidak ada deskripsi"}</p>
+                  </div>
                 </div>
-
-                <div className="flex items-center gap-1 shrink-0">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="size-8 text-muted-foreground hover:text-foreground"
-                    title="Lihat detail"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      setSelectedDashboard(dashboard)
-                      setSessionId(crypto.randomUUID())
-                      setChatMessages([])
-                      setTypingMessageIndex(null)
-                      fetchSessions(dashboard.superset_uuid)
-                    }}
-                  >
-                    <EyeOpenIcon className="size-4" />
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+        {dashboards.length > 3 && (
+          <div className="flex items-center justify-between border-t border-border pt-2">
+            <span className="font-mono text-[10px] text-muted-foreground">Halaman {dashboardPage + 1} / {Math.ceil(dashboards.length / 3)}</span>
+            <div className="flex items-center gap-1">
+              <Button type="button" variant="outline" size="icon" className="size-7 rounded-md" disabled={dashboardPage === 0} onClick={() => setDashboardPage((page) => Math.max(0, page - 1))} aria-label="Dashboard sebelumnya"><ChevronLeftIcon className="size-3.5" /></Button>
+              <Button type="button" variant="outline" size="icon" className="size-7 rounded-md" disabled={dashboardPage >= Math.ceil(dashboards.length / 3) - 1} onClick={() => setDashboardPage((page) => Math.min(Math.ceil(dashboards.length / 3) - 1, page + 1))} aria-label="Dashboard berikutnya"><ChevronRightIcon className="size-3.5" /></Button>
+            </div>
+          </div>
+        )}
       </motion.div>
 
-      {/* Main Content: Two Columns */}
-      <motion.div variants={itemVariants} className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+      {/* Main Content: dashboard evidence + chat */}
+      <motion.div variants={itemVariants} className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1.25fr)_minmax(360px,0.75fr)]">
         {/* Left: Dashboard Preview */}
-        <div className="lg:col-span-3">
-          <Card className="overflow-hidden h-full relative group">
+        <div>
+          <Card className="relative h-full overflow-hidden rounded-lg border-border shadow-none group">
             {selectedDashboard?.superset_uuid && (
               <Button
                 variant="secondary"
@@ -702,6 +746,13 @@ export default function AiAnalyticsPage() {
                 <OpenInNewWindowIcon className="size-4" />
               </Button>
             )}
+            <div className="flex items-center justify-between border-b border-border px-4 py-3">
+              <div className="flex items-center gap-2">
+                <BarChartIcon className="size-4 text-pulse" />
+                <div><p className="text-sm font-medium">Dashboard context</p><p className="text-[11px] text-muted-foreground">{selectedDashboard?.title || "Belum ada dashboard"}</p></div>
+              </div>
+              <Badge variant="outline" className="rounded-md font-mono text-[9px]">LIVE VIEW</Badge>
+            </div>
             <CardContent className="p-0">
               {selectedDashboard?.superset_uuid ? (
                 <EmbeddedDashboard
@@ -722,12 +773,12 @@ export default function AiAnalyticsPage() {
         </div>
 
         {/* Right: Chat Panel */}
-        <div className="lg:col-span-2">
-          <Card className="h-full flex flex-col">
-            <CardHeader className="border-b bg-card/50">
+        <div>
+          <Card className="flex h-full flex-col rounded-lg border-border shadow-none">
+            <CardHeader className="border-b border-pulse/20 bg-pulse/[0.03]">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="size-8 rounded-md bg-pulse/10 flex items-center justify-center">
+                  <div className="flex size-8 items-center justify-center rounded-md bg-pulse/10">
                     <LightningBoltIcon className="size-4 text-pulse" />
                   </div>
                   <div>
@@ -874,6 +925,7 @@ export default function AiAnalyticsPage() {
                               isStreaming={isStreamingMessage}
                               animate={typingMessageIndex === i}
                               onComplete={typingMessageIndex === i ? handleTypingComplete : undefined}
+                              evidence={typingMessageIndex === i ? activeEvidence || undefined : undefined}
                             />
                           ) : (
                             <p className="text-sm">{msg.content}</p>
@@ -949,7 +1001,7 @@ export default function AiAnalyticsPage() {
             <div className="text-sm text-muted-foreground">
               <span className="font-medium text-foreground">Catatan privasi: </span>
               Hanya data aggregated chart yang dikirim ke AI. Data mentah tidak keluar dari sistem Anda.
-              AI terbatas untuk analisis data saja — tidak bisa generate code, gambar, atau apapun selain analisis.
+              AI terbatas untuk analisis data saja. AI tidak membuat code, gambar, atau output di luar analisis.
             </div>
           </CardContent>
         </Card>
@@ -1082,6 +1134,7 @@ export default function AiAnalyticsPage() {
                             isStreaming={isStreamingMessage}
                             animate={typingMessageIndex === i}
                             onComplete={typingMessageIndex === i ? handleTypingComplete : undefined}
+                            evidence={typingMessageIndex === i ? activeEvidence || undefined : undefined}
                           />
                         )}
                       </div>

@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
-import { MixIcon, PersonIcon, LockClosedIcon, EyeOpenIcon, EyeClosedIcon } from "@radix-ui/react-icons"
+import { MixIcon, PersonIcon, LockClosedIcon, EyeOpenIcon, EyeClosedIcon, EnvelopeClosedIcon } from "@radix-ui/react-icons"
 import { motion, type Variants, useMotionValue, useTransform, useSpring } from "motion/react"
 import * as React from "react"
 import { useRouter } from "next/navigation"
@@ -380,9 +380,6 @@ export default function LoginPage() {
             <Card className="border-border/60 bg-card/50 backdrop-blur-sm">
               <CardHeader className="space-y-1 pb-4">
                 <CardTitle className="text-xl font-semibold tracking-tight">Masuk</CardTitle>
-                <p className="text-sm text-muted-foreground">
-                  Gunakan kredensial Anda untuk mengakses platform
-                </p>
               </CardHeader>
               <CardContent>
                 <form onSubmit={handleSubmit} className="space-y-4">
@@ -393,10 +390,10 @@ export default function LoginPage() {
                   )}
                   <div className="space-y-2">
                     <label htmlFor="email" className="text-sm font-medium">
-                      Surel
+                      Email
                     </label>
                     <div className="relative">
-                      <PersonIcon className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                      <EnvelopeClosedIcon className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
                       <Input
                         id="email"
                         type="email"
@@ -464,10 +461,6 @@ export default function LoginPage() {
               </CardContent>
             </Card>
           </motion.div>
-
-          <motion.p variants={itemVariants} className="text-center text-xs text-muted-foreground/60 mt-6">
-            Kredensial demo: admin@edupulse.dev / admin123
-          </motion.p>
         </motion.div>
       </div>
     </div>

@@ -41,12 +41,15 @@ import {
   EyeOpenIcon,
   CrossCircledIcon,
   OpenInNewWindowIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
 } from "@radix-ui/react-icons"
 import { motion, type Variants } from "motion/react"
 import * as React from "react"
 import { embedDashboard } from "@superset-ui/embedded-sdk"
 import { API_URL } from "@/lib/constants"
 import { useDomain } from "@/lib/domain-context"
+import { getAccessToken, getCurrentUser, hasMinimumRole } from "@/lib/auth"
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -96,7 +99,10 @@ function EmbeddedDashboard({ dashboardUuid, title }: { dashboardUuid: string; ti
           fetchGuestToken: async () => {
             const res = await fetch(`${API_URL}/api/superset/guest-token`, {
               method: "POST",
-              headers: { "Content-Type": "application/json" },
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${getAccessToken() || ""}`,
+              },
               body: JSON.stringify({ dashboard_uuid: dashboardUuid }),
             })
             if (!res.ok) throw new Error("Gagal mengambil guest token")
@@ -265,7 +271,11 @@ function DashboardFormFields({
 
 export default function DashboardPage() {
   const { activeDomainId } = useDomain()
+  const user = getCurrentUser()
+  const canEdit = hasMinimumRole(user?.role, "editor")
+  const canDelete = hasMinimumRole(user?.role, "admin")
   const [dashboards, setDashboards] = React.useState<DashboardItem[]>([])
+  const [dashboardPage, setDashboardPage] = React.useState(0)
   const [selectedDashboard, setSelectedDashboard] = React.useState<DashboardItem | null>(null)
   const [dialogOpen, setDialogOpen] = React.useState(false)
   const [detailOpen, setDetailOpen] = React.useState(false)
@@ -294,14 +304,16 @@ export default function DashboardPage() {
     fetchDomains()
   }, [activeDomainId])
 
-  const fetchDashboards = async () => {
+  async function fetchDashboards() {
     try {
       const url = activeDomainId
         ? `${API_URL}/api/dashboards?domain_id=${activeDomainId}`
         : `${API_URL}/api/dashboards`
-      const res = await fetch(url)
+      const token = getAccessToken()
+      const res = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
       const data = await res.json()
       setDashboards(data)
+      setDashboardPage(0)
       if (data.length > 0 && !selectedDashboard) {
         setSelectedDashboard(data[0])
       }
@@ -312,9 +324,10 @@ export default function DashboardPage() {
     }
   }
 
-  const fetchDomains = async () => {
+  async function fetchDomains() {
     try {
-      const res = await fetch(`${API_URL}/api/domains`)
+      const token = getAccessToken()
+      const res = await fetch(`${API_URL}/api/domains`, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
       const data = await res.json()
       setDomains(Array.isArray(data) ? data : [])
     } catch {
@@ -333,7 +346,10 @@ export default function DashboardPage() {
     try {
       await fetch(`${API_URL}/api/dashboards`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${getAccessToken() || ""}`,
+        },
         body: JSON.stringify({
           title: newTitle.trim(),
           description: newDescription.trim(),
@@ -362,7 +378,7 @@ export default function DashboardPage() {
     if (!deleteTarget) return
     setDeleting(true)
     try {
-      await fetch(`${API_URL}/api/dashboards/${deleteTarget.id}`, { method: "DELETE" })
+      await fetch(`${API_URL}/api/dashboards/${deleteTarget.id}`, { method: "DELETE", headers: { Authorization: `Bearer ${getAccessToken() || ""}` } })
       if (selectedDashboard?.id === deleteTarget.id) {
         setSelectedDashboard(null)
       }
@@ -391,7 +407,10 @@ export default function DashboardPage() {
     try {
       await fetch(`${API_URL}/api/dashboards/${editTarget.id}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${getAccessToken() || ""}`,
+        },
         body: JSON.stringify({
           title: editTitle.trim(),
           description: editDescription.trim(),
@@ -418,12 +437,11 @@ export default function DashboardPage() {
       className="space-y-6 max-w-7xl mx-auto"
     >
       {/* Header */}
-      <motion.div variants={itemVariants} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="space-y-1">
-          <h1 className="text-2xl font-bold tracking-tight">Dashboard Analitik</h1>
-          <p className="text-sm text-muted-foreground">
-            Dashboard Superset tersemat untuk visualisasi data
-          </p>
+      <motion.div variants={itemVariants} className="flex flex-col gap-4 border-b border-border pb-5 sm:flex-row sm:items-end sm:justify-between">
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-[0.16em] text-pulse"><BarChartIcon className="size-3" />BI workspace</div>
+          <h1 className="text-3xl font-semibold tracking-tight">Dashboard Analitik</h1>
+          <p className="text-sm text-muted-foreground">Dashboard Superset tersemat untuk membaca data mart.</p>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm">
@@ -434,7 +452,7 @@ export default function DashboardPage() {
             <ReloadIcon className="size-3.5 mr-1.5" />
             Segarkan
           </Button>
-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+          {canEdit && <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
               <Button size="sm" className="bg-pulse hover:bg-pulse/90 text-background gap-1.5">
                 <PlusIcon className="size-3.5" />
@@ -472,95 +490,56 @@ export default function DashboardPage() {
                 </Button>
               </DialogFooter>
             </DialogContent>
-          </Dialog>
+          </Dialog>}
         </div>
       </motion.div>
 
-      <motion.div variants={itemVariants}>
-        <Separator />
-      </motion.div>
-
-      {/* Dashboard Selector - Elongated Cards */}
+      {/* Dashboard selector */}
       <motion.div variants={itemVariants} className="space-y-2">
-        {dashboards.map((dashboard) => (
-          <Card
-            key={dashboard.id}
-            className={`group cursor-pointer transition-all duration-200 ${
-              selectedDashboard?.id === dashboard.id
-                ? "border-pulse/50 bg-pulse/5 shadow-sm"
-                : "hover:border-muted-foreground/20 hover:shadow-sm"
-            }`}
-            onClick={() => setSelectedDashboard(dashboard)}
-          >
-            <CardContent className="px-3 py-2">
-              <div className="flex items-center gap-3">
-                <div className={`size-10 rounded-lg flex items-center justify-center shrink-0 ${
-                  selectedDashboard?.id === dashboard.id
-                    ? "bg-pulse/15 text-pulse"
-                    : "bg-muted text-muted-foreground"
-                }`}>
-                  <BarChartIcon className="size-5" />
-                </div>
-
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-0.5">
-                    <h3 className="text-sm font-medium truncate">{dashboard.title}</h3>
-                    <Badge
-                      variant={dashboard.status === "active" ? "success" : "secondary"}
-                      className="shrink-0"
-                    >
-                      {dashboard.status}
-                    </Badge>
-                    {dashboard.dependency_count > 0 && (
-                      <Badge variant="outline" className="text-[10px] shrink-0 gap-1 bg-blue-500/10 text-blue-400 border-blue-500/20">
-                        {dashboard.dependency_count} dependensi
-                      </Badge>
-                    )}
+        <div className="flex items-center justify-between">
+          <div><p className="text-xs font-medium">Dashboard tersedia</p><p className="mt-0.5 text-[10px] text-muted-foreground">Pilih dashboard untuk membuka visualisasi Superset.</p></div>
+          <span className="font-mono text-[10px] text-muted-foreground">{dashboards.length} tersedia</span>
+        </div>
+        <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
+          {dashboards.slice(dashboardPage * 3, dashboardPage * 3 + 3).map((dashboard) => (
+            <Card
+              key={dashboard.id}
+              className={`group cursor-pointer rounded-md shadow-none transition-all duration-200 ${selectedDashboard?.id === dashboard.id ? "border-pulse/50 bg-pulse/5" : "border-border hover:border-pulse/30"}`}
+              onClick={() => setSelectedDashboard(dashboard)}
+            >
+              <CardContent className="px-3 py-2">
+                <div className="flex items-center gap-3">
+                  <div className={`flex size-10 shrink-0 items-center justify-center rounded-lg ${selectedDashboard?.id === dashboard.id ? "bg-pulse/15 text-pulse" : "bg-muted text-muted-foreground"}`}><BarChartIcon className="size-5" /></div>
+                  <div className="min-w-0 flex-1">
+                    <div className="mb-0.5 flex items-center gap-2"><h3 className="truncate text-sm font-medium">{dashboard.title}</h3><Badge variant={dashboard.status === "active" ? "success" : "secondary"} className="shrink-0 rounded-md text-[9px]">{dashboard.status}</Badge></div>
+                    <p className="truncate text-xs text-muted-foreground">{dashboard.description || "Tidak ada deskripsi"}</p>
+                    {dashboard.dependency_count > 0 && <p className="mt-1 font-mono text-[10px] text-muted-foreground">{dashboard.dependency_count} dependensi</p>}
                   </div>
-                  <p className="text-xs text-muted-foreground truncate">
-                    {dashboard.description || "Tidak ada deskripsi"}
-                  </p>
+                  <div className="flex shrink-0 items-center gap-0.5">
+                    <Button variant="ghost" size="icon" className="size-7 text-muted-foreground hover:text-foreground" title="Lihat detail" onClick={(e) => handleDetail(e, dashboard)}><EyeOpenIcon className="size-3.5" /></Button>
+                    {canEdit && <Button variant="ghost" size="icon" className="size-7 text-muted-foreground hover:text-foreground" title="Edit dashboard" onClick={(e) => handleEditDashboard(e, dashboard)}><Pencil1Icon className="size-3.5" /></Button>}
+                    {canDelete && <Button variant="ghost" size="icon" className="size-7 text-muted-foreground hover:text-destructive" title="Hapus" onClick={(e) => handleDeleteDashboard(e, dashboard)}><TrashIcon className="size-3.5" /></Button>}
+                  </div>
                 </div>
-
-                <div className="flex items-center gap-1 shrink-0">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="size-8 text-muted-foreground hover:text-foreground"
-                    title="Lihat detail"
-                    onClick={(e) => handleDetail(e, dashboard)}
-                  >
-                    <EyeOpenIcon className="size-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="size-8 text-muted-foreground hover:text-foreground"
-                    title="Edit dashboard"
-                    onClick={(e) => handleEditDashboard(e, dashboard)}
-                  >
-                    <Pencil1Icon className="size-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="size-8 text-muted-foreground hover:text-destructive"
-                    title="Hapus"
-                    onClick={(e) => handleDeleteDashboard(e, dashboard)}
-                  >
-                    <TrashIcon className="size-4" />
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+        {dashboards.length > 3 && (
+          <div className="flex items-center justify-between border-t border-border pt-2">
+            <span className="font-mono text-[10px] text-muted-foreground">Halaman {dashboardPage + 1} / {Math.ceil(dashboards.length / 3)}</span>
+            <div className="flex items-center gap-1">
+              <Button type="button" variant="outline" size="icon" className="size-7 rounded-md" disabled={dashboardPage === 0} onClick={() => setDashboardPage((page) => Math.max(0, page - 1))} aria-label="Dashboard sebelumnya"><ChevronLeftIcon className="size-3.5" /></Button>
+              <Button type="button" variant="outline" size="icon" className="size-7 rounded-md" disabled={dashboardPage >= Math.ceil(dashboards.length / 3) - 1} onClick={() => setDashboardPage((page) => Math.min(Math.ceil(dashboards.length / 3) - 1, page + 1))} aria-label="Dashboard berikutnya"><ChevronRightIcon className="size-3.5" /></Button>
+            </div>
+          </div>
+        )}
       </motion.div>
 
       {/* Embedded Dashboard Area */}
       <motion.div variants={itemVariants}>
         <Card className="relative group">
-          <CardHeader className="border-b bg-card/50">
+          <CardHeader className="border-b border-border bg-muted/20">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="size-8 rounded-md bg-pulse/10 flex items-center justify-center">
@@ -585,8 +564,8 @@ export default function DashboardPage() {
                     <OpenInNewWindowIcon className="size-4" />
                   </Button>
                 )}
-                <Badge variant="outline" className="font-mono text-[10px]">
-                  UUID: {selectedDashboard?.superset_uuid}
+                <Badge variant="outline" className="rounded-md font-mono text-[10px]">
+                  {selectedDashboard?.superset_uuid ? "Connected" : "Not connected"}
                 </Badge>
               </div>
             </div>
@@ -598,7 +577,7 @@ export default function DashboardPage() {
                 title={selectedDashboard.title}
               />
             ) : (
-              <div className="relative min-h-[500px] bg-gradient-to-br from-card via-card to-muted/20 flex items-center justify-center">
+              <div className="relative flex min-h-[500px] items-center justify-center bg-muted/10">
                 <div className="relative z-10 flex flex-col items-center gap-4 p-8 text-center">
                   <div className="size-14 rounded-2xl bg-pulse/10 border border-pulse/20 flex items-center justify-center">
                     <LightningBoltIcon className="size-7 text-pulse" />
