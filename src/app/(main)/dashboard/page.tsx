@@ -40,14 +40,16 @@ import {
   Pencil1Icon,
   EyeOpenIcon,
   CrossCircledIcon,
+  CheckCircledIcon,
   OpenInNewWindowIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
 } from "@radix-ui/react-icons"
 import { motion, type Variants } from "motion/react"
 import * as React from "react"
+import { toast } from "sonner"
 import { embedDashboard } from "@superset-ui/embedded-sdk"
-import { API_URL } from "@/lib/constants"
+import { API_URL, SUPERSET_URL } from "@/lib/constants"
 import { useDomain } from "@/lib/domain-context"
 import { getAccessToken, getCurrentUser, hasMinimumRole } from "@/lib/auth"
 
@@ -94,7 +96,7 @@ function EmbeddedDashboard({ dashboardUuid, title }: { dashboardUuid: string; ti
       try {
         embedded = await embedDashboard({
           id: dashboardUuid,
-          supersetDomain: "http://localhost:8088",
+          supersetDomain: SUPERSET_URL,
           mountPoint: containerRef.current!,
           fetchGuestToken: async () => {
             const res = await fetch(`${API_URL}/api/superset/guest-token`, {
@@ -299,10 +301,43 @@ export default function DashboardPage() {
   const [editDomainId, setEditDomainId] = React.useState<string>("")
   const [editStatus, setEditStatus] = React.useState("active")
 
+  // Dependency validation state
+  const [validationResult, setValidationResult] = React.useState<{
+    valid: boolean
+    total: number
+    valid_count: number
+    invalid_count: number
+    details: Array<{
+      mart_table_name: string
+      valid: boolean
+      pipeline_name: string | null
+      pipeline_status: string | null
+      error?: string
+    }>
+  } | null>(null)
+  const [validating, setValidating] = React.useState(false)
+
   React.useEffect(() => {
     fetchDashboards()
     fetchDomains()
   }, [activeDomainId])
+
+  const validateDependencies = async (dashboardId: number) => {
+    setValidating(true)
+    try {
+      const token = getAccessToken()
+      const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {}
+      const res = await fetch(`${API_URL}/api/dashboards/${dashboardId}/dependencies/validate`, { headers })
+      if (res.ok) {
+        const data = await res.json()
+        setValidationResult(data)
+      }
+    } catch {
+      // ignore
+    } finally {
+      setValidating(false)
+    }
+  }
 
   async function fetchDashboards() {
     try {
@@ -318,7 +353,7 @@ export default function DashboardPage() {
         setSelectedDashboard(data[0])
       }
     } catch {
-      // ignore
+      toast.error("Gagal memuat data dashboard")
     } finally {
       setLoading(false)
     }
@@ -331,6 +366,7 @@ export default function DashboardPage() {
       const data = await res.json()
       setDomains(Array.isArray(data) ? data : [])
     } catch {
+      toast.error("Gagal memuat data domain")
       setDomains([])
     }
   }
@@ -365,7 +401,7 @@ export default function DashboardPage() {
       setNewDomainId("")
       setDialogOpen(false)
     } catch {
-      // ignore
+      toast.error("Gagal menambahkan dashboard")
     }
   }
 
@@ -385,7 +421,7 @@ export default function DashboardPage() {
       setDeleteTarget(null)
       await fetchDashboards()
     } catch {
-      // ignore
+      toast.error("Gagal menghapus dashboard")
     } finally {
       setDeleting(false)
     }
@@ -422,7 +458,7 @@ export default function DashboardPage() {
       setEditTarget(null)
       await fetchDashboards()
     } catch {
-      // ignore
+      toast.error("Gagal menyimpan perubahan dashboard")
     } finally {
       setSaving(false)
     }
@@ -444,11 +480,11 @@ export default function DashboardPage() {
           <p className="text-sm text-muted-foreground">Dashboard Superset tersemat untuk membaca data mart.</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="sm" onClick={() => window.open(SUPERSET_URL, "_blank")}>
             <ExternalLinkIcon className="size-3.5 mr-1.5" />
             Buka di Superset
           </Button>
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="sm" onClick={() => { fetchDashboards(); fetchDomains(); }}>
             <ReloadIcon className="size-3.5 mr-1.5" />
             Segarkan
           </Button>
@@ -651,6 +687,65 @@ export default function DashboardPage() {
                   <span className="text-sm text-muted-foreground">Endpoint Embed</span>
                   <code className="text-xs font-mono bg-muted px-2 py-1 rounded">/api/superset/embed/{detailDashboard.id}</code>
                 </div>
+              </div>
+
+              {/* Dependency Validation */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">Validasi Dependensi</span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => validateDependencies(detailDashboard.id)}
+                    disabled={validating}
+                  >
+                    {validating ? (
+                      <ReloadIcon className="size-3 mr-1 animate-spin" />
+                    ) : (
+                      <CheckCircledIcon className="size-3 mr-1" />
+                    )}
+                    Validasi
+                  </Button>
+                </div>
+                {validationResult && (
+                  <div className={`rounded-lg border p-3 ${validationResult.valid ? "bg-emerald-500/5 border-emerald-500/20" : "bg-red-500/5 border-red-500/20"}`}>
+                    <div className="flex items-center gap-2 mb-2">
+                      {validationResult.valid ? (
+                        <CheckCircledIcon className="size-4 text-emerald-500" />
+                      ) : (
+                        <CrossCircledIcon className="size-4 text-red-400" />
+                      )}
+                      <span className="text-sm font-medium">
+                        {validationResult.valid ? "Semua dependensi valid" : `${validationResult.invalid_count} dependensi tidak valid`}
+                      </span>
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {validationResult.total} dependensi total: {validationResult.valid_count} valid, {validationResult.invalid_count} tidak valid
+                    </div>
+                    {validationResult.details.length > 0 && (
+                      <div className="mt-3 space-y-2">
+                        {validationResult.details.map((detail) => (
+                          <div key={detail.mart_table_name} className="flex items-center justify-between text-xs">
+                            <div className="flex items-center gap-2">
+                              {detail.valid ? (
+                                <CheckCircledIcon className="size-3 text-emerald-500" />
+                              ) : (
+                                <CrossCircledIcon className="size-3 text-red-400" />
+                              )}
+                              <span className="font-mono">{detail.mart_table_name}</span>
+                            </div>
+                            <span className="text-muted-foreground">
+                              {detail.valid ? detail.pipeline_name : detail.error}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+                {detailDashboard.dependency_count === 0 && !validationResult && (
+                  <p className="text-xs text-muted-foreground">Belum ada dependensi. Tambahkan dependensi untuk validasi.</p>
+                )}
               </div>
             </div>
           )}

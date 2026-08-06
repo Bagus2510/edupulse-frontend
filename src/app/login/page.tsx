@@ -433,13 +433,6 @@ export default function LoginPage() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
-                    <Checkbox id="remember" />
-                    <label htmlFor="remember" className="text-sm text-muted-foreground cursor-pointer">
-                      Ingat saya
-                    </label>
-                  </div>
-
                   <Button
                     type="submit"
                     className="w-full bg-pulse hover:bg-pulse/90 text-background font-medium cursor-pointer h-10 transition-all active:scale-[0.98]"

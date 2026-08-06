@@ -34,8 +34,9 @@ import {
 } from "@radix-ui/react-icons"
 import { motion, type Variants } from "motion/react"
 import * as React from "react"
+import { toast } from "sonner"
 import { API_URL } from "@/lib/constants"
-import { getAccessToken } from "@/lib/auth"
+import { getAccessToken, getCurrentUser, hasMinimumRole } from "@/lib/auth"
 import { DomainsSkeleton } from "@/components/skeletons/domains-skeleton"
 
 const containerVariants = {
@@ -134,6 +135,8 @@ function DomainFormFields({
 }
 
 export default function DomainsPage() {
+  const user = getCurrentUser()
+  const canEdit = hasMinimumRole(user?.role, "admin")
   const [domains, setDomains] = React.useState<Domain[]>([])
   const [loading, setLoading] = React.useState(true)
   const [createOpen, setCreateOpen] = React.useState(false)
@@ -160,7 +163,7 @@ export default function DomainsPage() {
       const data = await res.json()
       setDomains(Array.isArray(data) ? data : [])
     } catch {
-      // ignore
+      toast.error("Gagal memuat data domain")
     } finally {
       setLoading(false)
     }
@@ -190,7 +193,7 @@ export default function DomainsPage() {
       setNewColor("pulse")
       setCreateOpen(false)
     } catch {
-      // ignore
+      toast.error("Gagal membuat domain")
     } finally {
       setSaving(false)
     }
@@ -217,7 +220,7 @@ export default function DomainsPage() {
       await fetchDomains()
       setEditTarget(null)
     } catch {
-      // ignore
+      toast.error("Gagal mengedit domain")
     } finally {
       setSaving(false)
     }
@@ -233,7 +236,7 @@ export default function DomainsPage() {
       })
       setDomains((prev) => prev.filter((d) => d.id !== deleteTarget.id))
     } catch {
-      // ignore
+      toast.error("Gagal menghapus domain")
     } finally {
       setDeleteTarget(null)
     }
@@ -259,13 +262,15 @@ export default function DomainsPage() {
           <h1 className="text-3xl font-semibold tracking-tight">Domain</h1>
           <p className="text-sm text-muted-foreground">Kelompokkan pipeline dan dashboard berdasarkan konteks analitik.</p>
         </div>
-        <Button
-          onClick={() => setCreateOpen(true)}
-          className="bg-pulse hover:bg-pulse/90 text-background"
-        >
-          <PlusIcon className="size-3.5 mr-1.5" />
-          Buat Domain
-        </Button>
+        {canEdit && (
+          <Button
+            onClick={() => setCreateOpen(true)}
+            className="bg-pulse hover:bg-pulse/90 text-background"
+          >
+            <PlusIcon className="size-3.5 mr-1.5" />
+            Buat Domain
+          </Button>
+        )}
       </motion.div>
 
       {loading ? (
@@ -278,14 +283,16 @@ export default function DomainsPage() {
               <p className="text-sm text-muted-foreground mb-3">
                 Belum ada domain. Buat domain untuk mengelompokkan aset analitik.
               </p>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setCreateOpen(true)}
-              >
-                <PlusIcon className="size-3.5 mr-1.5" />
-                Buat Domain Pertama
-              </Button>
+              {canEdit && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCreateOpen(true)}
+                >
+                  <PlusIcon className="size-3.5 mr-1.5" />
+                  Buat Domain Pertama
+                </Button>
+              )}
             </CardContent>
           </Card>
         </motion.div>
@@ -318,22 +325,26 @@ export default function DomainsPage() {
                       <span>{domain.dashboard_count} dashboard</span>
                     </div>
                     <div className="flex items-center gap-1 ml-auto">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="size-7 text-muted-foreground hover:text-foreground"
-                        onClick={() => openEdit(domain)}
-                      >
-                        <Pencil1Icon className="size-3.5" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="size-7 text-muted-foreground hover:text-red-400"
-                        onClick={() => setDeleteTarget(domain)}
-                      >
-                        <TrashIcon className="size-3.5" />
-                      </Button>
+                      {canEdit && (
+                        <>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="size-7 text-muted-foreground hover:text-foreground"
+                            onClick={() => openEdit(domain)}
+                          >
+                            <Pencil1Icon className="size-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="size-7 text-muted-foreground hover:text-red-400"
+                            onClick={() => setDeleteTarget(domain)}
+                          >
+                            <TrashIcon className="size-3.5" />
+                          </Button>
+                        </>
+                      )}
                     </div>
                   </div>
                 </CardContent>

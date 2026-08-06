@@ -17,7 +17,9 @@ import {
 } from "@radix-ui/react-icons"
 import { motion, type Variants } from "motion/react"
 import * as React from "react"
-import { API_URL } from "@/lib/constants"
+import { toast } from "sonner"
+import { API_URL, SUPERSET_URL, AIRFLOW_URL } from "@/lib/constants"
+import { getAccessToken } from "@/lib/auth"
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -42,13 +44,18 @@ export default function SettingsPage() {
   const [loading, setLoading] = React.useState(true)
 
   React.useEffect(() => {
-    fetch(`${API_URL}/api/settings`)
+    const token = getAccessToken()
+    const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {}
+    fetch(`${API_URL}/api/settings`, { headers })
       .then((r) => r.json())
       .then((data) => {
         setStatus(data)
         setLoading(false)
       })
-      .catch(() => setLoading(false))
+      .catch(() => {
+        toast.error("Gagal memuat pengaturan")
+        setLoading(false)
+      })
   }, [])
 
   return (
@@ -120,7 +127,7 @@ export default function SettingsPage() {
                   </div>
                 </div>
                 <code className="text-xs font-mono bg-muted/50 px-2 py-0.5 rounded">
-                  {status?.configured ? "•••••设置于 .env" : "belum diatur"}
+                  {status?.configured ? "••••• (diatur di .env)" : "belum diatur"}
                 </code>
               </div>
             </div>
@@ -145,8 +152,8 @@ export default function SettingsPage() {
           <CardContent className="space-y-2">
             {[
               { name: "FastAPI Docs", url: `${API_URL}/api/settings/docs-redirect`, description: "Dokumentasi API backend", icon: FileTextIcon },
-              { name: "Apache Superset", url: "http://localhost:8088", description: "BI dashboard & visualisasi", icon: BarChartIcon },
-              { name: "Apache Airflow", url: "http://localhost:8080", description: "Orchestration & pipeline", icon: LapTimerIcon },
+              { name: "Apache Superset", url: SUPERSET_URL, description: "BI dashboard & visualisasi", icon: BarChartIcon },
+              { name: "Apache Airflow", url: AIRFLOW_URL, description: "Orchestration & pipeline", icon: LapTimerIcon },
               { name: "Google AI Studio", url: "https://aistudio.google.com/apikey", description: "Dapatkan Gemini API key", icon: LightningBoltIcon },
             ].map((link) => (
               <a

@@ -27,10 +27,12 @@ import {
   CrossCircledIcon,
   ClockIcon,
   LightningBoltIcon,
+  PersonIcon,
 } from "@radix-ui/react-icons"
 import { motion } from "motion/react"
+import { toast } from "sonner"
 import { API_URL } from "@/lib/constants"
-import { getAccessToken } from "@/lib/auth"
+import { getAccessToken, getCurrentUser, hasMinimumRole } from "@/lib/auth"
 import { PipelineDetailSkeleton } from "@/components/skeletons/pipeline-detail-skeleton"
 
 interface PipelineStep {
@@ -61,6 +63,24 @@ interface Pipeline {
   updated_at: string
 }
 
+interface PipelineRun {
+  id: number
+  dag_id: string
+  run_id: string | null
+  status: string
+  duration: string | null
+  duration_ms: number | null
+  tasks_total: number | null
+  tasks_completed: number | null
+  rows_read: number | null
+  rows_written: number | null
+  quality_status: string | null
+  quality_summary: Record<string, unknown> | null
+  error_message: string | null
+  triggered_by: number | null
+  created_at: string
+}
+
 function StatusBadge({ status }: { status: string }) {
   const variants: Record<string, string> = {
     draft: "bg-muted text-muted-foreground",
@@ -69,6 +89,10 @@ function StatusBadge({ status }: { status: string }) {
     queued: "bg-slate-400/15 text-slate-400",
     success: "bg-emerald-500/15 text-emerald-500",
     failed: "bg-red-500/15 text-red-400",
+    idle: "bg-muted text-muted-foreground",
+    unknown: "bg-muted text-muted-foreground",
+    warning: "bg-amber-500/15 text-amber-500",
+    passed: "bg-emerald-500/15 text-emerald-500",
   }
   return (
     <Badge className={variants[status] || variants.draft}>
@@ -92,12 +116,27 @@ function StatusIcon({ status }: { status: string }) {
   }
 }
 
+function formatDuration(ms: number | null): string {
+  if (!ms || ms === 0) return "-"
+  if (ms < 1000) return `${ms}ms`
+  return `${(ms / 1000).toFixed(1)}s`
+}
+
+function formatNumber(n: number | null): string {
+  if (n === null || n === undefined) return "-"
+  return n.toLocaleString("id-ID")
+}
+
 export default function PipelineDetailPage() {
   const router = useRouter()
   const params = useParams()
   const pipelineId = params.id as string
+  const user = getCurrentUser()
+  const canEdit = hasMinimumRole(user?.role, "editor")
+  const canDelete = hasMinimumRole(user?.role, "admin")
 
   const [pipeline, setPipeline] = React.useState<Pipeline | null>(null)
+  const [runs, setRuns] = React.useState<PipelineRun[]>([])
   const [loading, setLoading] = React.useState(true)
   const [running, setRunning] = React.useState(false)
   const [runStatus, setRunStatus] = React.useState<string | null>(null)
@@ -107,17 +146,32 @@ export default function PipelineDetailPage() {
 
   React.useEffect(() => {
     fetchPipeline()
+    fetchRuns()
   }, [pipelineId])
 
   const fetchPipeline = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/pipelines/${pipelineId}`)
+      const token = getAccessToken()
+      const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {}
+      const res = await fetch(`${API_URL}/api/pipelines/${pipelineId}`, { headers })
       const data = await res.json()
       setPipeline(data)
     } catch {
       router.push("/pipeline")
     } finally {
       setLoading(false)
+    }
+  }
+
+  const fetchRuns = async () => {
+    try {
+      const token = getAccessToken()
+      const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {}
+      const res = await fetch(`${API_URL}/api/pipelines/${pipelineId}/runs?limit=10`, { headers })
+      const data = await res.json()
+      setRuns(Array.isArray(data) ? data : [])
+    } catch {
+      toast.error("Gagal memuat riwayat run")
     }
   }
 
@@ -133,6 +187,7 @@ export default function PipelineDetailPage() {
       })
       pollStatus()
     } catch {
+      toast.error("Gagal menjalankan pipeline")
       setRunning(false)
       setRunStatus("failed")
     }
@@ -152,8 +207,10 @@ export default function PipelineDetailPage() {
           setProgress(100)
           setRunning(false)
           fetchPipeline()
+          fetchRuns()
         }
       } catch {
+        toast.error("Gagal memeriksa status pipeline")
         clearInterval(interval)
         setRunning(false)
       }
@@ -167,6 +224,7 @@ export default function PipelineDetailPage() {
       await fetch(`${API_URL}/api/pipelines/${pipelineId}`, { method: "DELETE" })
       router.push("/pipeline")
     } catch {
+      toast.error("Gagal menghapus pipeline")
       setDeleting(false)
     }
   }
@@ -190,7 +248,7 @@ export default function PipelineDetailPage() {
         </Button>
         <div className="flex-1">
           <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold tracking-tight">{pipeline.name}</h1>
+            <h1 className="text-3xl font-semibold tracking-tight">{pipeline.name}</h1>
             <StatusBadge status={pipeline.status} />
           </div>
           {pipeline.description && (
@@ -198,14 +256,18 @@ export default function PipelineDetailPage() {
           )}
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={() => router.push(`/pipeline/builder?id=${pipelineId}`)}>
-            <Pencil1Icon className="size-3.5 mr-1" />
-            Edit
-          </Button>
-          <Button variant="outline" size="sm" className="text-red-400 hover:text-red-400" onClick={() => setDeleteOpen(true)} disabled={deleting}>
-            <TrashIcon className="size-3.5 mr-1" />
-            Hapus
-          </Button>
+          {canEdit && (
+            <Button variant="outline" size="sm" onClick={() => router.push(`/pipeline/builder?id=${pipelineId}`)}>
+              <Pencil1Icon className="size-3.5 mr-1" />
+              Edit
+            </Button>
+          )}
+          {canDelete && (
+            <Button variant="outline" size="sm" className="text-red-400 hover:text-red-400" onClick={() => setDeleteOpen(true)} disabled={deleting}>
+              <TrashIcon className="size-3.5 mr-1" />
+              Hapus
+            </Button>
+          )}
         </div>
       </div>
 
@@ -314,25 +376,96 @@ export default function PipelineDetailPage() {
         </CardContent>
       </Card>
 
-      <div className="flex gap-3 pb-8">
-        <Button
-          className="bg-pulse hover:bg-pulse/90 text-background"
-          onClick={handleRun}
-          disabled={running || pipeline.steps.length === 0}
-        >
-          {running ? (
-            <>
-              <ReloadIcon className="size-3.5 mr-1.5 animate-spin" />
-              Berjalan...
-            </>
+      <Card className="border-border/60">
+        <CardHeader className="pb-4">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base">Run History</CardTitle>
+            <span className="text-xs text-muted-foreground font-mono">{runs.length} run</span>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {runs.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-6">Belum ada riwayat run.</p>
           ) : (
-            <>
-              <PlayIcon className="size-3.5 mr-1.5" />
-              Jalankan Pipeline
-            </>
+            <div className="space-y-3">
+              {runs.map((run) => (
+                <div key={run.id} className="border border-border/60 rounded-lg p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <StatusIcon status={run.status} />
+                      <StatusBadge status={run.status} />
+                      <span className="text-xs text-muted-foreground font-mono">
+                        {new Date(run.created_at).toLocaleString("id-ID", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                      </span>
+                    </div>
+                    {run.run_id && (
+                      <span className="text-[10px] font-mono text-muted-foreground truncate max-w-[200px]">{run.run_id}</span>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
+                    <div>
+                      <p className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">Duration</p>
+                      <p className="mt-0.5 font-mono text-foreground">{formatDuration(run.duration_ms)}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">Rows Read</p>
+                      <p className="mt-0.5 font-mono text-foreground">{formatNumber(run.rows_read)}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">Rows Written</p>
+                      <p className="mt-0.5 font-mono text-foreground">{formatNumber(run.rows_written)}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">Quality</p>
+                      <div className="mt-0.5">{run.quality_status ? <StatusBadge status={run.quality_status} /> : <span className="text-xs text-muted-foreground">-</span>}</div>
+                    </div>
+                  </div>
+
+                  {run.tasks_total && run.tasks_total > 0 && (
+                    <div className="text-xs">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-muted-foreground">Tasks</span>
+                        <span className="font-mono">{run.tasks_completed || 0}/{run.tasks_total}</span>
+                      </div>
+                      <Progress value={((run.tasks_completed || 0) / run.tasks_total) * 100} className="h-1.5" />
+                    </div>
+                  )}
+
+                  {run.error_message && (
+                    <div className="rounded-lg bg-red-500/5 border border-red-500/20 p-3">
+                      <p className="text-[10px] font-mono uppercase tracking-wider text-red-400 mb-1">Error</p>
+                      <pre className="text-xs font-mono text-red-300 whitespace-pre-wrap max-h-32 overflow-y-auto">{run.error_message}</pre>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
           )}
-        </Button>
-      </div>
+        </CardContent>
+      </Card>
+
+      {canEdit && (
+        <div className="flex gap-3 pb-8">
+          <Button
+            className="bg-pulse hover:bg-pulse/90 text-background"
+            onClick={handleRun}
+            disabled={running || pipeline.steps.length === 0}
+          >
+            {running ? (
+              <>
+                <ReloadIcon className="size-3.5 mr-1.5 animate-spin" />
+                Berjalan...
+              </>
+            ) : (
+              <>
+                <PlayIcon className="size-3.5 mr-1.5" />
+                Jalankan Pipeline
+              </>
+            )}
+          </Button>
+        </div>
+      )}
     </motion.div>
 
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>

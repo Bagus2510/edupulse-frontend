@@ -1,4 +1,6 @@
 export const API_URL = ""
+export const SUPERSET_URL = process.env.NEXT_PUBLIC_SUPERSET_URL || "http://localhost:8088"
+export const AIRFLOW_URL = process.env.NEXT_PUBLIC_AIRFLOW_URL || "http://localhost:8080"
 
 export interface Dashboard {
   id: string

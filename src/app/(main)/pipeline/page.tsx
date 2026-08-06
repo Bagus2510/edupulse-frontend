@@ -20,8 +20,9 @@ import {
 import { motion, type Variants } from "motion/react"
 import * as React from "react"
 import { useRouter } from "next/navigation"
+import { toast } from "sonner"
 import { API_URL } from "@/lib/constants"
-import { getAccessToken } from "@/lib/auth"
+import { getAccessToken, getCurrentUser, hasMinimumRole } from "@/lib/auth"
 import { useDomain } from "@/lib/domain-context"
 import {
   AlertDialog,
@@ -61,6 +62,10 @@ interface Pipeline {
   is_active: boolean
   domain_id: number | null
   created_at: string
+  rows_read: number | null
+  rows_written: number | null
+  duration_ms: number | null
+  quality_status: string | null
 }
 
 function StatusDot({ status }: { status: PipelineStatus }) {
@@ -111,6 +116,9 @@ function StatusIcon({ status }: { status: PipelineStatus }) {
 export default function PipelinePage() {
   const router = useRouter()
   const { activeDomainId } = useDomain()
+  const user = getCurrentUser()
+  const canEdit = hasMinimumRole(user?.role, "editor")
+  const canDelete = hasMinimumRole(user?.role, "admin")
   const [pipelines, setPipelines] = React.useState<Pipeline[]>([])
   const [loading, setLoading] = React.useState(true)
   const [runningId, setRunningId] = React.useState<number | null>(null)
@@ -127,7 +135,9 @@ export default function PipelinePage() {
   const startPolling = () => {
     if (pollRef.current) clearInterval(pollRef.current)
     pollRef.current = setInterval(async () => {
-      const res = await fetch(`${API_URL}/api/pipelines`)
+      const token = getAccessToken()
+      const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {}
+      const res = await fetch(`${API_URL}/api/pipelines`, { headers })
       const data = await res.json()
       setPipelines(data)
       const hasRunning = data.some((p: Pipeline) => p.status === "running")
@@ -140,14 +150,16 @@ export default function PipelinePage() {
 
   async function fetchPipelines() {
     try {
+      const token = getAccessToken()
+      const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {}
       const url = activeDomainId
         ? `${API_URL}/api/pipelines?domain_id=${activeDomainId}`
         : `${API_URL}/api/pipelines`
-      const res = await fetch(url)
+      const res = await fetch(url, { headers })
       const data = await res.json()
       setPipelines(data)
     } catch {
-      // ignore
+      toast.error("Gagal memuat data pipeline")
     } finally {
       setLoading(false)
     }
@@ -165,7 +177,7 @@ export default function PipelinePage() {
       fetchPipelines()
       startPolling()
     } catch {
-      // ignore
+      toast.error("Gagal menjalankan pipeline")
     } finally {
       setRunningId(null)
     }
@@ -177,7 +189,7 @@ export default function PipelinePage() {
       await fetch(`${API_URL}/api/pipelines/${deleteTarget.id}`, { method: "DELETE" })
       setPipelines((prev) => prev.filter((p) => p.id !== deleteTarget.id))
     } catch {
-      // ignore
+      toast.error("Gagal menghapus pipeline")
     } finally {
       setDeleteTarget(null)
     }
@@ -192,7 +204,7 @@ export default function PipelinePage() {
       })
       fetchPipelines()
     } catch {
-      // ignore
+      toast.error("Gagal mengubah status pipeline")
     }
   }
 
@@ -208,7 +220,7 @@ export default function PipelinePage() {
       setInterruptTarget(null)
       fetchPipelines()
     } catch {
-      // ignore
+      toast.error("Gagal menghentikan pipeline")
     } finally {
       setInterrupting(false)
     }
@@ -227,13 +239,15 @@ export default function PipelinePage() {
           <h1 className="text-3xl font-semibold tracking-tight">Pipeline ETL</h1>
           <p className="text-sm text-muted-foreground">Buat, jalankan, dan pantau transformasi data.</p>
         </div>
-        <Button
-          onClick={() => router.push("/pipeline/builder")}
-          className="rounded-md bg-pulse hover:bg-pulse/90 text-background"
-        >
-          <PlusIcon className="size-3.5 mr-1.5" />
-          Buat Pipeline
-        </Button>
+        {canEdit && (
+          <Button
+            onClick={() => router.push("/pipeline/builder")}
+            className="rounded-md bg-pulse hover:bg-pulse/90 text-background"
+          >
+            <PlusIcon className="size-3.5 mr-1.5" />
+            Buat Pipeline
+          </Button>
+        )}
       </motion.div>
 
       {/* Pipeline List */}
@@ -282,6 +296,37 @@ export default function PipelinePage() {
                           <p className="font-mono text-foreground">{pipeline.step_count}</p>
                           <p className="text-[10px]">steps</p>
                         </div>
+                        {pipeline.rows_read != null && (
+                          <div className="text-center">
+                            <p className="font-mono text-foreground">{pipeline.rows_read.toLocaleString()}</p>
+                            <p className="text-[10px]">rows read</p>
+                          </div>
+                        )}
+                        {pipeline.rows_written != null && (
+                          <div className="text-center">
+                            <p className="font-mono text-foreground">{pipeline.rows_written.toLocaleString()}</p>
+                            <p className="text-[10px]">rows written</p>
+                          </div>
+                        )}
+                        {pipeline.duration_ms != null && (
+                          <div className="text-center">
+                            <p className="font-mono text-foreground">{(pipeline.duration_ms / 1000).toFixed(1)}s</p>
+                            <p className="text-[10px]">duration</p>
+                          </div>
+                        )}
+                        {pipeline.quality_status && (
+                          <div className="text-center">
+                            <Badge variant="outline" className={`text-[10px] font-medium px-1.5 py-0 ${
+                              pipeline.quality_status === "pass"
+                                ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                                : pipeline.quality_status === "fail"
+                                ? "bg-red-500/10 text-red-400 border-red-500/20"
+                                : "bg-muted text-muted-foreground border-border/50"
+                            }`}>
+                              {pipeline.quality_status}
+                            </Badge>
+                          </div>
+                        )}
                         <div className="text-right min-w-[100px]">
                           <p className="font-mono text-[10px]">
                               {pipeline.last_run_at
@@ -302,68 +347,76 @@ export default function PipelinePage() {
                         >
                           <EyeOpenIcon className="size-3.5" />
                         </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="size-8 text-muted-foreground hover:text-foreground"
-                          onClick={() => router.push(`/pipeline/builder?id=${pipeline.id}`)}
-                        >
-                          <Pencil1Icon className="size-3.5" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="size-8 text-muted-foreground hover:text-red-400"
-                          onClick={() => setDeleteTarget(pipeline)}
-                        >
-                          <TrashIcon className="size-3.5" />
-                        </Button>
-                        <div className="w-px h-5 bg-border/60 mx-1" />
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className={`size-8 ${pipeline.is_active ? "text-emerald-400 hover:text-emerald-300" : "text-muted-foreground hover:text-foreground"}`}
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            toggleActive(pipeline.id)
-                          }}
-                          title={pipeline.is_active ? "Nonaktifkan" : "Aktifkan"}
-                        >
-                          {pipeline.is_active ? (
-                            <ClockIcon className="size-3.5" />
-                          ) : (
-                            <PlayIcon className="size-3.5" />
-                          )}
-                        </Button>
-                        <div className="w-px h-5 bg-border/60 mx-1" />
-                        {pipeline.status === "running" ? (
+                        {canEdit && (
                           <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-8 text-xs border-red-500/30 text-red-400 hover:bg-red-500/10 hover:text-red-300"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              setInterruptTarget(pipeline)
-                            }}
+                            variant="ghost"
+                            size="icon"
+                            className="size-8 text-muted-foreground hover:text-foreground"
+                            onClick={() => router.push(`/pipeline/builder?id=${pipeline.id}`)}
                           >
-                            <StopIcon className="size-3 mr-1" />
-                            Stop
+                            <Pencil1Icon className="size-3.5" />
                           </Button>
-                        ) : (
+                        )}
+                        {canDelete && (
                           <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-8 text-xs"
-                            onClick={(e) => handleRun(pipeline.id, e)}
-                            disabled={runningId === pipeline.id || pipeline.step_count === 0}
+                            variant="ghost"
+                            size="icon"
+                            className="size-8 text-muted-foreground hover:text-red-400"
+                            onClick={() => setDeleteTarget(pipeline)}
                           >
-                            {runningId === pipeline.id ? (
-                              <ReloadIcon className="size-3 mr-1 animate-spin" />
+                            <TrashIcon className="size-3.5" />
+                          </Button>
+                        )}
+                        {canEdit && (
+                          <>
+                            <div className="w-px h-5 bg-border/60 mx-1" />
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className={`size-8 ${pipeline.is_active ? "text-emerald-400 hover:text-emerald-300" : "text-muted-foreground hover:text-foreground"}`}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                toggleActive(pipeline.id)
+                              }}
+                              title={pipeline.is_active ? "Nonaktifkan" : "Aktifkan"}
+                            >
+                              {pipeline.is_active ? (
+                                <ClockIcon className="size-3.5" />
+                              ) : (
+                                <PlayIcon className="size-3.5" />
+                              )}
+                            </Button>
+                            <div className="w-px h-5 bg-border/60 mx-1" />
+                            {pipeline.status === "running" ? (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-8 text-xs border-red-500/30 text-red-400 hover:bg-red-500/10 hover:text-red-300"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setInterruptTarget(pipeline)
+                                }}
+                              >
+                                <StopIcon className="size-3 mr-1" />
+                                Stop
+                              </Button>
                             ) : (
-                              <PlayIcon className="size-3 mr-1" />
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-8 text-xs"
+                                onClick={(e) => handleRun(pipeline.id, e)}
+                                disabled={runningId === pipeline.id || pipeline.step_count === 0}
+                              >
+                                {runningId === pipeline.id ? (
+                                  <ReloadIcon className="size-3 mr-1 animate-spin" />
+                                ) : (
+                                  <PlayIcon className="size-3 mr-1" />
+                                )}
+                                Run
+                              </Button>
                             )}
-                            Run
-                          </Button>
+                          </>
                         )}
                       </div>
                     </div>
@@ -383,14 +436,16 @@ export default function PipelinePage() {
                 </div>
                 <p className="text-sm font-medium mb-1">Belum ada pipeline</p>
                 <p className="text-xs text-muted-foreground mb-4">Buat pipeline pertama untuk memulai</p>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => router.push("/pipeline/builder")}
-                >
-                  <PlusIcon className="size-3.5 mr-1.5" />
-                  Buat Pipeline
-                </Button>
+                {canEdit && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => router.push("/pipeline/builder")}
+                  >
+                    <PlusIcon className="size-3.5 mr-1.5" />
+                    Buat Pipeline
+                  </Button>
+                )}
               </CardContent>
             </Card>
           </motion.div>

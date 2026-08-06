@@ -12,6 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
+  DialogFooter,
 } from "@/components/ui/dialog"
 import {
   AlertDialog,
@@ -35,7 +36,11 @@ import {
   InfoCircledIcon,
   ColumnsIcon,
   RowsIcon,
+  Pencil1Icon,
+  PlusIcon,
 } from "@radix-ui/react-icons"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { motion, type Variants } from "motion/react"
 import { toast } from "sonner"
 import { API_URL } from "@/lib/constants"
@@ -62,7 +67,7 @@ interface TableDetail {
   row_count: number
   columns: { name: string; type: string }[]
   quality?: {
-    asset: { quality_status: string; quality_score: number | null; freshness_status: string }
+    asset: { id: number; quality_status: string; quality_score: number | null; freshness_status: string }
     checks: { check_name: string; status: string; severity: string; message: string }[]
   }
 }
@@ -119,6 +124,16 @@ export default function DatasetsPage() {
   const [detailInfo, setDetailInfo] = React.useState<TableDetail | null>(null)
   const [detailLoading, setDetailLoading] = React.useState(false)
   const [deleteTarget, setDeleteTarget] = React.useState<string | null>(null)
+  const [qualityRules, setQualityRules] = React.useState<{ id: number; rule_type: string; column_name: string | null; parameters: Record<string, unknown>; severity: string; enabled: boolean }[]>([])
+  const [ruleFormOpen, setRuleFormOpen] = React.useState(false)
+  const [ruleEditTarget, setRuleEditTarget] = React.useState<{ id: number; rule_type: string; column_name: string | null; parameters: Record<string, unknown>; severity: string } | null>(null)
+  const [ruleType, setRuleType] = React.useState("not_null")
+  const [ruleColumn, setRuleColumn] = React.useState("")
+  const [ruleSeverity, setRuleSeverity] = React.useState("medium")
+  const [ruleParamsValues, setRuleParamsValues] = React.useState("")
+  const [ruleParamsMin, setRuleParamsMin] = React.useState("")
+  const [ruleParamsMax, setRuleParamsMax] = React.useState("")
+  const [ruleSaving, setRuleSaving] = React.useState(false)
   const fileInputRef = React.useRef<HTMLInputElement>(null)
 
   React.useEffect(() => {
@@ -159,17 +174,23 @@ export default function DatasetsPage() {
     setDetailOpen(true)
     setDetailLoading(true)
     setDetailInfo(null)
+    setQualityRules([])
     try {
       const token = getAccessToken()
-      const res = await fetch(`${API_URL}/api/datasets/${ds.full_name}/info`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      })
+      const authHeaders: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {}
+      const res = await fetch(`${API_URL}/api/datasets/${ds.full_name}/info`, { headers: authHeaders })
       const data = await res.json()
-      const qualityRes = await fetch(`${API_URL}/api/datasets/${ds.full_name}/quality`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      })
+      const qualityRes = await fetch(`${API_URL}/api/datasets/${ds.full_name}/quality`, { headers: authHeaders })
       const quality = qualityRes.ok ? await qualityRes.json() : null
       setDetailInfo({ ...data, quality })
+      // Fetch quality rules for this asset
+      if (quality?.asset?.id) {
+        const rulesRes = await fetch(`${API_URL}/api/quality-rules/asset/${quality.asset.id}`, { headers: authHeaders })
+        if (rulesRes.ok) {
+          const rules = await rulesRes.json()
+          setQualityRules(rules)
+        }
+      }
     } catch {
       // ignore
     } finally {
@@ -238,6 +259,102 @@ export default function DatasetsPage() {
   const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) handleUpload(file)
+  }
+
+  function openCreateRule() {
+    setRuleEditTarget(null)
+    setRuleType("not_null")
+    setRuleColumn("")
+    setRuleSeverity("medium")
+    setRuleParamsValues("")
+    setRuleParamsMin("")
+    setRuleParamsMax("")
+    setRuleFormOpen(true)
+  }
+
+  function openEditRule(rule: { id: number; rule_type: string; column_name: string | null; parameters: Record<string, unknown>; severity: string }) {
+    setRuleEditTarget(rule)
+    setRuleType(rule.rule_type)
+    setRuleColumn(rule.column_name || "")
+    setRuleSeverity(rule.severity)
+    const params = rule.parameters || {}
+    setRuleParamsValues(params.values ? (params.values as string[]).join(", ") : "")
+    setRuleParamsMin(params.value !== undefined ? String(params.value) : params.min_value !== undefined ? String(params.min_value) : "")
+    setRuleParamsMax(params.value !== undefined ? "" : params.max_value !== undefined ? String(params.max_value) : "")
+    setRuleFormOpen(true)
+  }
+
+  async function handleSaveRule() {
+    if (!detailInfo?.quality?.asset?.id) return
+    setRuleSaving(true)
+    try {
+      const token = getAccessToken()
+      const headers: Record<string, string> = { "Content-Type": "application/json" }
+      if (token) headers["Authorization"] = `Bearer ${token}`
+      const assetId = detailInfo.quality.asset.id
+      let parameters: Record<string, unknown> = {}
+      if (ruleType === "accepted_values" && ruleParamsValues.trim()) {
+        parameters.values = ruleParamsValues.split(",").map((v) => v.trim()).filter(Boolean)
+      } else if (ruleType === "min_value" && ruleParamsMin) {
+        parameters.value = Number(ruleParamsMin)
+      } else if (ruleType === "max_value" && ruleParamsMax) {
+        parameters.value = Number(ruleParamsMax)
+      } else if (ruleType === "row_count_min" && ruleParamsMin) {
+        parameters.value = Number(ruleParamsMin)
+      } else if (ruleType === "freshness_sla" && ruleParamsMin) {
+        parameters.max_age_hours = Number(ruleParamsMin)
+      }
+      if (ruleEditTarget) {
+        await fetch(`${API_URL}/api/quality-rules/${ruleEditTarget.id}`, {
+          method: "PUT",
+          headers,
+          body: JSON.stringify({
+            rule_type: ruleType,
+            column_name: ruleColumn || null,
+            parameters,
+            severity: ruleSeverity,
+            enabled: true,
+          }),
+        })
+      } else {
+        await fetch(`${API_URL}/api/quality-rules`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            asset_id: assetId,
+            rule_type: ruleType,
+            column_name: ruleColumn || null,
+            parameters,
+            severity: ruleSeverity,
+          }),
+        })
+      }
+      setRuleFormOpen(false)
+      // Refresh rules
+      const rulesRes = await fetch(`${API_URL}/api/quality-rules/asset/${assetId}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+      if (rulesRes.ok) setQualityRules(await rulesRes.json())
+    } catch {
+      toast.error("Gagal menyimpan rule")
+    } finally {
+      setRuleSaving(false)
+    }
+  }
+
+  async function handleDeleteRule(ruleId: number) {
+    if (!detailInfo?.quality?.asset?.id) return
+    try {
+      const token = getAccessToken()
+      await fetch(`${API_URL}/api/quality-rules/${ruleId}`, {
+        method: "DELETE",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+      const rulesRes = await fetch(`${API_URL}/api/quality-rules/asset/${detailInfo.quality.asset.id}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+      if (rulesRes.ok) setQualityRules(await rulesRes.json())
+    } catch {
+      toast.error("Gagal menghapus rule")
+    }
   }
 
   return (
@@ -528,8 +645,11 @@ export default function DatasetsPage() {
               )}
 
               <div className="space-y-1.5">
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Kolom</p>
-                <ScrollArea className="h-64 border rounded-lg">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Kolom</p>
+                  <span className="text-[10px] font-mono text-muted-foreground">{detailInfo.columns.length}</span>
+                </div>
+                <ScrollArea className="h-48 border rounded-lg">
                   <div className="divide-y">
                     {detailInfo.columns.map((col) => (
                       <div key={col.name} className="flex items-center justify-between px-3 py-2 text-sm">
@@ -541,6 +661,43 @@ export default function DatasetsPage() {
                     ))}
                   </div>
                 </ScrollArea>
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Quality Rules</p>
+                  <Button variant="outline" size="sm" className="h-7 text-[10px]" onClick={openCreateRule}>
+                    <PlusIcon className="mr-1 size-3" />
+                    Tambah rule
+                  </Button>
+                </div>
+                {qualityRules.length === 0 ? (
+                  <p className="text-[10px] text-muted-foreground py-2">Belum ada custom rule. Rule default (row count, null rate) selalu berjalan.</p>
+                ) : (
+                  <div className="space-y-1.5">
+                    {qualityRules.map((rule) => (
+                      <div key={rule.id} className="flex items-center justify-between rounded-md border border-border/60 px-3 py-2 text-[10px]">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono font-medium text-foreground">{rule.rule_type}</span>
+                            {rule.column_name && <span className="text-muted-foreground">on {rule.column_name}</span>}
+                            <Badge variant={rule.severity === "critical" ? "destructive" : rule.severity === "high" ? "warning" : "secondary"} className="text-[9px]">
+                              {rule.severity}
+                            </Badge>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <Button variant="ghost" size="icon" className="size-5" onClick={() => openEditRule(rule)}>
+                            <Pencil1Icon className="size-2.5" />
+                          </Button>
+                          <Button variant="ghost" size="icon" className="size-5 hover:text-destructive" onClick={() => void handleDeleteRule(rule.id)}>
+                            <TrashIcon className="size-2.5" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           ) : (
@@ -565,6 +722,87 @@ export default function DatasetsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={ruleFormOpen} onOpenChange={setRuleFormOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-sm">{ruleEditTarget ? "Edit Rule" : "Quality Rule Baru"}</DialogTitle>
+            <DialogDescription className="text-xs">
+              {ruleEditTarget ? "Perbarui rule kualitas data." : "Tambahkan rule kualitas custom untuk asset ini."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Rule Type</Label>
+              <select value={ruleType} onChange={(e) => setRuleType(e.target.value)} className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-xs">
+                <option value="not_null">Not Null</option>
+                <option value="unique">Unique</option>
+                <option value="accepted_values">Accepted Values</option>
+                <option value="min_value">Min Value</option>
+                <option value="max_value">Max Value</option>
+                <option value="row_count_min">Row Count Min</option>
+                <option value="freshness_sla">Freshness SLA</option>
+              </select>
+            </div>
+            {["not_null", "unique", "accepted_values", "min_value", "max_value"].includes(ruleType) && (
+              <div className="space-y-1.5">
+                <Label className="text-xs">Column</Label>
+                <select value={ruleColumn} onChange={(e) => setRuleColumn(e.target.value)} className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-xs">
+                  <option value="">Pilih kolom</option>
+                  {detailInfo?.columns.map((col) => (
+                    <option key={col.name} value={col.name}>{col.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+            {ruleType === "accepted_values" && (
+              <div className="space-y-1.5">
+                <Label className="text-xs">Values (koma-pisah)</Label>
+                <Input value={ruleParamsValues} onChange={(e) => setRuleParamsValues(e.target.value)} placeholder="Pass, Fail, Withdrawn" className="text-xs font-mono" />
+              </div>
+            )}
+            {ruleType === "min_value" && (
+              <div className="space-y-1.5">
+                <Label className="text-xs">Minimum Value</Label>
+                <Input type="number" value={ruleParamsMin} onChange={(e) => setRuleParamsMin(e.target.value)} placeholder="0" className="text-xs font-mono" />
+              </div>
+            )}
+            {ruleType === "max_value" && (
+              <div className="space-y-1.5">
+                <Label className="text-xs">Maximum Value</Label>
+                <Input type="number" value={ruleParamsMax} onChange={(e) => setRuleParamsMax(e.target.value)} placeholder="100" className="text-xs font-mono" />
+              </div>
+            )}
+            {ruleType === "row_count_min" && (
+              <div className="space-y-1.5">
+                <Label className="text-xs">Minimum Rows</Label>
+                <Input type="number" value={ruleParamsMin} onChange={(e) => setRuleParamsMin(e.target.value)} placeholder="1" className="text-xs font-mono" />
+              </div>
+            )}
+            {ruleType === "freshness_sla" && (
+              <div className="space-y-1.5">
+                <Label className="text-xs">Max Age (jam)</Label>
+                <Input type="number" value={ruleParamsMin} onChange={(e) => setRuleParamsMin(e.target.value)} placeholder="24" className="text-xs font-mono" />
+              </div>
+            )}
+            <div className="space-y-1.5">
+              <Label className="text-xs">Severity</Label>
+              <select value={ruleSeverity} onChange={(e) => setRuleSeverity(e.target.value)} className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-xs">
+                <option value="info">Info</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+                <option value="critical">Critical</option>
+              </select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setRuleFormOpen(false)} disabled={ruleSaving}>Batal</Button>
+            <Button size="sm" onClick={() => void handleSaveRule()} disabled={ruleSaving || !ruleType} className="bg-pulse hover:bg-pulse/90 text-background">
+              {ruleSaving ? "Menyimpan..." : ruleEditTarget ? "Simpan" : "Buat rule"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </PageSkeletonWrapper>
   )
 }

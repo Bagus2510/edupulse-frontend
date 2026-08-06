@@ -11,8 +11,9 @@ import { StepEditor, PipelineStep } from "@/components/pipeline/step-editor"
 import { RocketIcon, ArrowLeftIcon, ReloadIcon, FileTextIcon } from "@radix-ui/react-icons"
 import { FieldGuide } from "@/components/pipeline/field-guide"
 import { motion, type Variants } from "motion/react"
+import { toast } from "sonner"
 import { API_URL } from "@/lib/constants"
-import { getAccessToken } from "@/lib/auth"
+import { getAccessToken, getCurrentUser, hasMinimumRole } from "@/lib/auth"
 import {
   Select,
   SelectContent,
@@ -47,6 +48,14 @@ export default function PipelineBuilderPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const editId = searchParams.get("id")
+  const user = getCurrentUser()
+  const canEdit = hasMinimumRole(user?.role, "editor")
+
+  React.useEffect(() => {
+    if (!canEdit) {
+      router.push("/pipeline")
+    }
+  }, [canEdit, router])
 
   const [name, setName] = React.useState("")
   const [description, setDescription] = React.useState("")
@@ -76,6 +85,7 @@ export default function PipelineBuilderPage() {
       const data = await res.json()
       setTables(Array.isArray(data) ? data : [])
     } catch {
+      toast.error("Gagal memuat daftar tabel")
       setTables([])
     }
   }
@@ -86,6 +96,7 @@ export default function PipelineBuilderPage() {
       const data = await res.json()
       setDomains(Array.isArray(data) ? data : [])
     } catch {
+      toast.error("Gagal memuat daftar domain")
       setDomains([])
     }
   }
@@ -125,7 +136,7 @@ export default function PipelineBuilderPage() {
         }))
       )
     } catch {
-      // ignore
+      toast.error("Gagal memuat data pipeline")
     } finally {
       setLoading(false)
     }
@@ -178,7 +189,7 @@ export default function PipelineBuilderPage() {
         router.push(`/pipeline/${data.id}`)
       }
     } catch {
-      // ignore
+      toast.error("Gagal menyimpan pipeline")
     } finally {
       setSaving(false)
     }
@@ -187,6 +198,8 @@ export default function PipelineBuilderPage() {
   if (loading) {
     return <PipelineBuilderSkeleton />
   }
+
+  if (!canEdit) return null
 
   return (
     <motion.div

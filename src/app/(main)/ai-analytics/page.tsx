@@ -56,9 +56,10 @@ import {
 } from "@radix-ui/react-icons"
 import { motion, AnimatePresence, type Variants } from "motion/react"
 import * as React from "react"
+import { toast } from "sonner"
 import { embedDashboard } from "@superset-ui/embedded-sdk"
-import { API_URL } from "@/lib/constants"
-import { getAccessToken } from "@/lib/auth"
+import { API_URL, SUPERSET_URL } from "@/lib/constants"
+import { getAccessToken, getCurrentUser, hasMinimumRole } from "@/lib/auth"
 
 function StreamingCursor() {
   return (
@@ -255,6 +256,7 @@ interface ChatMessage {
   role: "user" | "assistant"
   content: string
   timestamp: Date
+  evidence?: ChatEvidence | null
 }
 
 interface ChatSession {
@@ -277,7 +279,7 @@ function EmbeddedDashboard({ uuid, title }: { uuid: string; title: string }) {
       if (!containerRef.current || !uuid) return
       try {
         await embedDashboard({
-          supersetDomain: "http://localhost:8088",
+          supersetDomain: SUPERSET_URL,
           mountPoint: containerRef.current,
           id: uuid,
           fetchGuestToken: async () => {
@@ -344,6 +346,8 @@ function EmbeddedDashboard({ uuid, title }: { uuid: string; title: string }) {
 }
 
 export default function AiAnalyticsPage() {
+  const user = getCurrentUser()
+  const canEdit = hasMinimumRole(user?.role, "editor")
   const [dashboards, setDashboards] = React.useState<DashboardItem[]>([])
   const [dashboardPage, setDashboardPage] = React.useState(0)
   const [selectedDashboard, setSelectedDashboard] = React.useState<DashboardItem | null>(null)
@@ -405,7 +409,7 @@ export default function AiAnalyticsPage() {
         setSelectedDashboard(data[0])
       }
     } catch {
-      // ignore
+      toast.error("Gagal memuat data dashboard")
     } finally {
       setLoading(false)
     }
@@ -425,7 +429,7 @@ export default function AiAnalyticsPage() {
         setSessions(data)
       }
     } catch {
-      // ignore
+      toast.error("Gagal memuat sesi chat")
     }
   }
 
@@ -437,10 +441,11 @@ export default function AiAnalyticsPage() {
       const res = await fetch(`${API_URL}/api/ai/chat/history/${sid}`, { headers })
       if (res.ok) {
         const data = await res.json()
-        const messages: ChatMessage[] = data.map((m: { role: string; content: string; timestamp: string }) => ({
+        const messages: ChatMessage[] = data.map((m: { role: string; content: string; timestamp: string; evidence?: ChatEvidence | null }) => ({
           role: m.role as "user" | "assistant",
           content: m.content,
           timestamp: new Date(m.timestamp),
+          evidence: m.evidence || null,
         })).filter((m: ChatMessage) => {
           // Filter out the hidden context message
           if (m.role === "user" && m.content.includes("Chart data:")) return false
@@ -453,7 +458,7 @@ export default function AiAnalyticsPage() {
         setActiveEvidence(null)
       }
     } catch {
-      // ignore
+      toast.error("Gagal memuat riwayat chat")
     }
   }
 
@@ -465,7 +470,7 @@ export default function AiAnalyticsPage() {
       await fetch(`${API_URL}/api/ai/chat/sessions/${sid}`, { method: "DELETE", headers })
       setSessions((prev) => prev.filter((s) => s.session_id !== sid))
     } catch {
-      // ignore
+      toast.error("Gagal menghapus sesi chat")
     }
   }
 
@@ -592,7 +597,7 @@ export default function AiAnalyticsPage() {
         body: JSON.stringify({ session_id: sessionId }),
       })
     } catch {
-      // ignore
+      toast.error("Gagal menghapus riwayat chat")
     }
     setChatMessages([])
     newSession()
@@ -611,7 +616,7 @@ export default function AiAnalyticsPage() {
       setChatMessages([])
       await fetchDashboards()
     } catch {
-      // ignore
+      toast.error("Gagal menghapus dashboard")
     } finally {
       setDeleting(false)
     }
@@ -646,7 +651,7 @@ export default function AiAnalyticsPage() {
       setEditTarget(null)
       await fetchDashboards()
     } catch {
-      // ignore
+      toast.error("Gagal menyimpan perubahan dashboard")
     } finally {
       setSaving(false)
     }
@@ -798,15 +803,17 @@ export default function AiAnalyticsPage() {
                   >
                     <ExitFullScreenIcon className="size-3.5" />
                   </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="size-7"
-                    onClick={newSession}
-                    title="Chat baru"
-                  >
-                    <PlusIcon className="size-3.5" />
-                  </Button>
+                  {canEdit && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="size-7"
+                      onClick={newSession}
+                      title="Chat baru"
+                    >
+                      <PlusIcon className="size-3.5" />
+                    </Button>
+                  )}
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button variant="ghost" size="icon" className="size-7" title="Riwayat chat">
@@ -835,23 +842,25 @@ export default function AiAnalyticsPage() {
                                 })}
                               </p>
                             </div>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="size-5 shrink-0 hover:text-destructive"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                deleteSessionHandler(s.session_id)
-                              }}
-                            >
-                              <TrashIcon className="size-3" />
-                            </Button>
+                            {canEdit && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="size-5 shrink-0 hover:text-destructive"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  deleteSessionHandler(s.session_id)
+                                }}
+                              >
+                                <TrashIcon className="size-3" />
+                              </Button>
+                            )}
                           </DropdownMenuItem>
                         ))
                       )}
                     </DropdownMenuContent>
                   </DropdownMenu>
-                  {chatMessages.length > 0 && (
+                  {chatMessages.length > 0 && canEdit && (
                     <Button
                       variant="ghost"
                       size="icon"
@@ -925,7 +934,7 @@ export default function AiAnalyticsPage() {
                               isStreaming={isStreamingMessage}
                               animate={typingMessageIndex === i}
                               onComplete={typingMessageIndex === i ? handleTypingComplete : undefined}
-                              evidence={typingMessageIndex === i ? activeEvidence || undefined : undefined}
+                              evidence={typingMessageIndex === i ? (activeEvidence || msg.evidence || undefined) : (msg.evidence || undefined)}
                             />
                           ) : (
                             <p className="text-sm">{msg.content}</p>
@@ -1052,9 +1061,11 @@ export default function AiAnalyticsPage() {
               </div>
             </div>
             <div className="flex items-center gap-1">
-              <Button variant="ghost" size="icon" className="size-8" onClick={newSession} title="Chat baru">
-                <PlusIcon className="size-4" />
-              </Button>
+              {canEdit && (
+                <Button variant="ghost" size="icon" className="size-8" onClick={newSession} title="Chat baru">
+                  <PlusIcon className="size-4" />
+                </Button>
+              )}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" size="icon" className="size-8" title="Riwayat chat">
@@ -1083,12 +1094,14 @@ export default function AiAnalyticsPage() {
                             })}
                           </p>
                         </div>
-                        <Button
-                          variant="ghost" size="icon" className="size-5 shrink-0 hover:text-destructive"
-                          onClick={(e) => { e.stopPropagation(); deleteSessionHandler(s.session_id) }}
-                        >
-                          <TrashIcon2 className="size-3" />
-                        </Button>
+                        {canEdit && (
+                          <Button
+                            variant="ghost" size="icon" className="size-5 shrink-0 hover:text-destructive"
+                            onClick={(e) => { e.stopPropagation(); deleteSessionHandler(s.session_id) }}
+                          >
+                            <TrashIcon2 className="size-3" />
+                          </Button>
+                        )}
                       </DropdownMenuItem>
                     ))
                   )}
@@ -1134,7 +1147,7 @@ export default function AiAnalyticsPage() {
                             isStreaming={isStreamingMessage}
                             animate={typingMessageIndex === i}
                             onComplete={typingMessageIndex === i ? handleTypingComplete : undefined}
-                            evidence={typingMessageIndex === i ? activeEvidence || undefined : undefined}
+                            evidence={typingMessageIndex === i ? (activeEvidence || msg.evidence || undefined) : (msg.evidence || undefined)}
                           />
                         )}
                       </div>
