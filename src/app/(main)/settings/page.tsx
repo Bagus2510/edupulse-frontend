@@ -19,6 +19,8 @@ import { motion, type Variants } from "motion/react"
 import * as React from "react"
 import { toast } from "sonner"
 import { API_URL, SUPERSET_URL, AIRFLOW_URL } from "@/lib/constants"
+import { useRouter } from "next/navigation"
+import { getCurrentUser } from "@/lib/auth"
 import { getAccessToken } from "@/lib/auth"
 
 const containerVariants = {
@@ -40,6 +42,10 @@ interface SettingsStatus {
 }
 
 export default function SettingsPage() {
+  const router = useRouter()
+  const user = getCurrentUser()
+  const isViewer = user?.role === "viewer"
+  const isEditor = user?.role === "editor"
   const [status, setStatus] = React.useState<SettingsStatus | null>(null)
   const [loading, setLoading] = React.useState(true)
 
@@ -57,6 +63,12 @@ export default function SettingsPage() {
         setLoading(false)
       })
   }, [])
+
+  React.useEffect(() => {
+    if (isViewer || isEditor) router.push("/home")
+  }, [isViewer, isEditor, router])
+
+  if (isViewer || isEditor) return null
 
   return (
     <PageSkeletonWrapper skeleton={<SettingsSkeleton />}>

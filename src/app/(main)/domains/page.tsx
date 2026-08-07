@@ -32,6 +32,7 @@ import {
   BarChartIcon,
   GlobeIcon,
 } from "@radix-ui/react-icons"
+import { useRouter } from "next/navigation"
 import { motion, type Variants } from "motion/react"
 import * as React from "react"
 import { toast } from "sonner"
@@ -135,7 +136,10 @@ function DomainFormFields({
 }
 
 export default function DomainsPage() {
+  const router = useRouter()
   const user = getCurrentUser()
+  const isViewer = user?.role === "viewer"
+  const isEditor = user?.role === "editor"
   const canEdit = hasMinimumRole(user?.role, "admin")
   const [domains, setDomains] = React.useState<Domain[]>([])
   const [loading, setLoading] = React.useState(true)
@@ -156,6 +160,10 @@ export default function DomainsPage() {
   React.useEffect(() => {
     fetchDomains()
   }, [])
+
+  React.useEffect(() => {
+    if (isViewer || isEditor) router.push("/home")
+  }, [isViewer, isEditor, router])
 
   async function fetchDomains() {
     try {
@@ -248,6 +256,8 @@ export default function DomainsPage() {
     setEditDescription(domain.description || "")
     setEditColor(domain.color || "pulse")
   }
+
+  if (isViewer || isEditor) return null
 
   return (
     <motion.div

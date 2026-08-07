@@ -25,6 +25,8 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { PageSkeletonWrapper } from "@/components/skeletons/page-skeleton-wrapper"
 import { DocsSkeleton } from "@/components/skeletons/docs-skeleton"
+import { useRouter } from "next/navigation"
+import { getCurrentUser } from "@/lib/auth"
 
 const sections = [
   { id: "overview", label: "Gambaran umum" },
@@ -98,6 +100,10 @@ function scrollToSection(id: string) {
 }
 
 export default function DocsPage() {
+  const router = useRouter()
+  const user = getCurrentUser()
+  const isViewer = user?.role === "viewer"
+  const isEditor = user?.role === "editor"
   const reduceMotion = useReducedMotion()
   const [query, setQuery] = React.useState("")
   const [copiedPath, setCopiedPath] = React.useState<string | null>(null)
@@ -110,6 +116,10 @@ export default function DocsPage() {
     )
   }, [query])
 
+  React.useEffect(() => {
+    if (isViewer || isEditor) router.push("/home")
+  }, [isViewer, isEditor, router])
+
   async function copyPath(path: string) {
     await navigator.clipboard.writeText(path)
     setCopiedPath(path)
@@ -119,6 +129,8 @@ export default function DocsPage() {
   const motionProps = reduceMotion
     ? { initial: false, whileInView: undefined, viewport: undefined }
     : { initial: "hidden", whileInView: "visible", viewport: { once: true, amount: 0.12 } }
+
+  if (isViewer || isEditor) return null
 
   return (
     <PageSkeletonWrapper skeleton={<DocsSkeleton />}>

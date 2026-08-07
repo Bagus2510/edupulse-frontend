@@ -5,9 +5,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { PageSkeletonWrapper } from "@/components/skeletons/page-skeleton-wrapper"
+import { LineageSkeleton } from "@/components/skeletons/lineage-skeleton"
 import { useDomain } from "@/lib/domain-context"
 import { API_URL } from "@/lib/constants"
-import { getAccessToken } from "@/lib/auth"
+import { useRouter } from "next/navigation"
+import { getAccessToken, getCurrentUser } from "@/lib/auth"
 import {
   GridIcon,
   RocketIcon,
@@ -344,6 +346,9 @@ function LineageGraphCanvas({ data }: { data: LineageGraph }) {
 }
 
 export default function LineagePage() {
+  const router = useRouter()
+  const user = getCurrentUser()
+  const isViewer = user?.role === "viewer"
   const [data, setData] = React.useState<LineageGraph | null>(null)
   const [loading, setLoading] = React.useState(true)
   const { activeDomainId } = useDomain()
@@ -377,8 +382,14 @@ export default function LineagePage() {
     fetchLineage()
   }, [activeDomainId])
 
+  React.useEffect(() => {
+    if (isViewer) router.push("/home")
+  }, [isViewer, router])
+
+  if (isViewer) return null
+
   return (
-    <PageSkeletonWrapper skeleton={<div className="h-[600px] bg-muted/20 rounded-lg animate-pulse" />}>
+    <PageSkeletonWrapper skeleton={<LineageSkeleton />}>
       <motion.div variants={containerVariants} initial="hidden" animate="show" className="space-y-4">
         <motion.div variants={itemVariants}>
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">

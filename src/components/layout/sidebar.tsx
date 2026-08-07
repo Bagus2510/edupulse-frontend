@@ -25,64 +25,75 @@ const navItems = [
     label: "Ringkasan",
     href: "/home",
     icon: DashboardIcon,
+    roles: ["viewer", "editor", "admin"],
   },
   {
     label: "Analitik",
     href: "/dashboard",
     icon: BarChartIcon,
+    roles: ["viewer", "editor", "admin"],
   },
   {
     label: "Analisis AI",
     href: "/ai-analytics",
     icon: LightningBoltIcon,
+    roles: ["viewer", "editor", "admin"],
   },
   {
     label: "Pipeline",
     href: "/pipeline",
     icon: RocketIcon,
+    roles: ["editor", "admin"],
   },
   {
     label: "Dataset",
     href: "/datasets",
     icon: TableIcon,
+    roles: ["editor", "admin"],
   },
   {
     label: "Alur Data",
     href: "/lineage",
     icon: LoopIcon,
+    roles: ["editor", "admin"],
   },
   {
     label: "Domain",
     href: "/domains",
     icon: GlobeIcon,
+    roles: ["admin"],
   },
   {
     label: "Golden Path",
     href: "/golden-path",
     icon: LightningBoltIcon,
+    roles: ["admin"],
   },
   {
     label: "Dokumentasi",
     href: "/docs",
     icon: FileTextIcon,
+    roles: ["admin"],
   },
   {
     label: "Pengaturan",
     href: "/settings",
     icon: GearIcon,
+    roles: ["admin"],
   },
   {
     label: "Kelola User",
     href: "/admin/users",
     icon: PersonIcon,
-    adminOnly: true,
+    roles: ["admin"],
   },
 ]
 
 export function Sidebar() {
   const pathname = usePathname()
   const { activeDomainId } = useDomain()
-  const isAdmin = hasMinimumRole(getCurrentUser()?.role, "admin")
+  const user = getCurrentUser()
+  const userRole = user?.role || "viewer"
 
   return (
     <aside className="hidden lg:flex lg:flex-col lg:w-60 lg:border-r bg-card/50 backdrop-blur-sm shrink-0 h-full sticky top-0">
@@ -101,7 +112,8 @@ export function Sidebar() {
 
       <nav className="flex-1 px-3 py-2 space-y-1 overflow-y-auto no-scrollbar">
         {navItems
-          .filter((item) => !(activeDomainId !== null && item.href === "/domains") && (!item.adminOnly || isAdmin))
+          .filter((item) => item.roles.includes(userRole))
+          .filter((item) => !(activeDomainId !== null && item.href === "/domains"))
           .map((item) => {
           const isActive = pathname === item.href
           return (
@@ -128,10 +140,10 @@ export function Sidebar() {
       <div className="px-3 pb-4 shrink-0">
         <Separator className="mb-3" />
         <div className="px-3 py-2">
-          <p className="text-[10px] text-muted-foreground uppercase tracking-widest mb-1">Status Pipeline</p>
+          <p className="text-[10px] text-muted-foreground uppercase tracking-widest mb-1">Status</p>
           <div className="flex items-center gap-2">
-            <div className="size-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="text-xs text-muted-foreground">Semua sistem beroperasi</span>
+            <div className="size-2 rounded-full bg-emerald-500" />
+            <span className="text-xs text-muted-foreground">Online</span>
           </div>
         </div>
       </div>

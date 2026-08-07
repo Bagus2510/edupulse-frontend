@@ -44,6 +44,7 @@ import { Label } from "@/components/ui/label"
 import { motion, type Variants } from "motion/react"
 import { toast } from "sonner"
 import { API_URL } from "@/lib/constants"
+import { useRouter } from "next/navigation"
 import { getAccessToken, getCurrentUser, hasMinimumRole } from "@/lib/auth"
 
 interface DatasetTable {
@@ -110,7 +111,9 @@ function DatasetQualityBadge({ dataset }: { dataset: DatasetTable }) {
 }
 
 export default function DatasetsPage() {
+  const router = useRouter()
   const user = getCurrentUser()
+  const isViewer = user?.role === "viewer"
   const canUpload = hasMinimumRole(user?.role, "editor")
   const canDelete = hasMinimumRole(user?.role, "admin")
   const [datasets, setDatasets] = React.useState<DatasetTable[]>([])
@@ -140,6 +143,10 @@ export default function DatasetsPage() {
     fetchDatasets()
     fetchMartDatasets()
   }, [])
+
+  React.useEffect(() => {
+    if (isViewer) router.push("/home")
+  }, [isViewer, router])
 
   async function fetchDatasets() {
     try {
@@ -356,6 +363,8 @@ export default function DatasetsPage() {
       toast.error("Gagal menghapus rule")
     }
   }
+
+  if (isViewer) return null
 
   return (
     <PageSkeletonWrapper skeleton={<DatasetsSkeleton />}>

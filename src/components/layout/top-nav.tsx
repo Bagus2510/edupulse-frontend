@@ -43,15 +43,17 @@ import { DomainSwitcher } from "./domain-switcher"
 import { useDomain } from "@/lib/domain-context"
 
 const navItems = [
-  { label: "Ringkasan", href: "/home", icon: DashboardIcon },
-  { label: "Analitik", href: "/dashboard", icon: BarChartIcon },
-  { label: "Analisis AI", href: "/ai-analytics", icon: LightningBoltIcon },
-  { label: "Pipeline", href: "/pipeline", icon: RocketIcon },
-  { label: "Dataset", href: "/datasets", icon: TableIcon },
-  { label: "Alur Data", href: "/lineage", icon: LoopIcon },
-  { label: "Domain", href: "/domains", icon: GlobeIcon },
-  { label: "Dokumentasi", href: "/docs", icon: FileTextIcon },
-  { label: "Pengaturan", href: "/settings", icon: GearIcon },
+  { label: "Ringkasan", href: "/home", icon: DashboardIcon, roles: ["viewer", "editor", "admin"] },
+  { label: "Analitik", href: "/dashboard", icon: BarChartIcon, roles: ["viewer", "editor", "admin"] },
+  { label: "Analisis AI", href: "/ai-analytics", icon: LightningBoltIcon, roles: ["viewer", "editor", "admin"] },
+  { label: "Pipeline", href: "/pipeline", icon: RocketIcon, roles: ["editor", "admin"] },
+  { label: "Dataset", href: "/datasets", icon: TableIcon, roles: ["editor", "admin"] },
+  { label: "Alur Data", href: "/lineage", icon: LoopIcon, roles: ["editor", "admin"] },
+  { label: "Domain", href: "/domains", icon: GlobeIcon, roles: ["admin"] },
+  { label: "Golden Path", href: "/golden-path", icon: LightningBoltIcon, roles: ["admin"] },
+  { label: "Dokumentasi", href: "/docs", icon: FileTextIcon, roles: ["admin"] },
+  { label: "Pengaturan", href: "/settings", icon: GearIcon, roles: ["admin"] },
+  { label: "Kelola User", href: "/admin/users", icon: PersonIcon, roles: ["admin"] },
 ]
 
 export function TopNav() {
@@ -60,6 +62,7 @@ export function TopNav() {
   const [open, setOpen] = React.useState(false)
   const [profileOpen, setProfileOpen] = React.useState(false)
   const user = getCurrentUser()
+  const userRole = user?.role || "viewer"
   const { activeDomainId } = useDomain()
 
   const handleLogout = () => {
@@ -89,6 +92,7 @@ export function TopNav() {
           </div>
           <nav className="px-3 py-4 space-y-1">
             {navItems
+              .filter((item) => item.roles.includes(userRole))
               .filter((item) => !(activeDomainId !== null && item.href === "/domains"))
               .map((item) => {
               const isActive = pathname === item.href

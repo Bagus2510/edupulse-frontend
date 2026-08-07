@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { useRouter } from "next/navigation"
 import { motion, type Variants } from "motion/react"
 import {
   ChevronLeftIcon,
@@ -106,7 +107,10 @@ async function parseResponse(response: Response, action: string) {
 }
 
 export default function AdminUsersPage() {
+  const router = useRouter()
   const currentUser = getCurrentUser()
+  const isViewer = currentUser?.role === "viewer"
+  const isEditor = currentUser?.role === "editor"
   const isAdmin = hasMinimumRole(currentUser?.role, "admin")
   const [users, setUsers] = React.useState<ManagedUser[]>([])
   const [form, setForm] = React.useState<UserForm>(emptyForm)
@@ -151,6 +155,10 @@ export default function AdminUsersPage() {
   React.useEffect(() => {
     void loadUsers(1)
   }, [])
+
+  React.useEffect(() => {
+    if (isViewer || isEditor) router.push("/home")
+  }, [isViewer, isEditor, router])
 
   const resetForm = () => {
     setEditing(null)
@@ -216,6 +224,8 @@ export default function AdminUsersPage() {
       setDeleting(false)
     }
   }
+
+  if (isViewer || isEditor) return null
 
   if (!isAdmin) {
     return <div className="mx-auto max-w-3xl border border-red-400/30 bg-red-400/5 p-6 text-sm text-red-300">Halaman ini khusus admin.</div>

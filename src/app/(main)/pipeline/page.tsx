@@ -24,6 +24,8 @@ import { toast } from "sonner"
 import { API_URL } from "@/lib/constants"
 import { getAccessToken, getCurrentUser, hasMinimumRole } from "@/lib/auth"
 import { useDomain } from "@/lib/domain-context"
+import { PageSkeletonWrapper } from "@/components/skeletons/page-skeleton-wrapper"
+import { PipelineSkeleton } from "@/components/skeletons/pipeline-skeleton"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -117,6 +119,7 @@ export default function PipelinePage() {
   const router = useRouter()
   const { activeDomainId } = useDomain()
   const user = getCurrentUser()
+  const isViewer = user?.role === "viewer"
   const canEdit = hasMinimumRole(user?.role, "editor")
   const canDelete = hasMinimumRole(user?.role, "admin")
   const [pipelines, setPipelines] = React.useState<Pipeline[]>([])
@@ -126,6 +129,10 @@ export default function PipelinePage() {
   const [interruptTarget, setInterruptTarget] = React.useState<Pipeline | null>(null)
   const [interrupting, setInterrupting] = React.useState(false)
   const pollRef = React.useRef<ReturnType<typeof setInterval> | null>(null)
+
+  React.useEffect(() => {
+    if (isViewer) router.push("/home")
+  }, [isViewer, router])
 
   React.useEffect(() => {
     fetchPipelines()
@@ -186,7 +193,9 @@ export default function PipelinePage() {
   const handleDelete = async () => {
     if (!deleteTarget) return
     try {
-      await fetch(`${API_URL}/api/pipelines/${deleteTarget.id}`, { method: "DELETE" })
+      const token = getAccessToken()
+      const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {}
+      await fetch(`${API_URL}/api/pipelines/${deleteTarget.id}`, { method: "DELETE", headers })
       setPipelines((prev) => prev.filter((p) => p.id !== deleteTarget.id))
     } catch {
       toast.error("Gagal menghapus pipeline")
@@ -226,13 +235,16 @@ export default function PipelinePage() {
     }
   }
 
+  if (isViewer) return null
+
   return (
-    <motion.div
-      variants={containerVariants}
-      initial="hidden"
-      animate="show"
-      className="space-y-6 max-w-7xl mx-auto"
-    >
+    <PageSkeletonWrapper skeleton={<PipelineSkeleton />}>
+      <motion.div
+        variants={containerVariants}
+        initial="hidden"
+        animate="show"
+        className="space-y-6 max-w-7xl mx-auto"
+      >
       <motion.div variants={itemVariants} className="flex flex-col gap-4 border-b border-border pb-5 sm:flex-row sm:items-end sm:justify-between">
         <div className="space-y-2">
           <div className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-[0.16em] text-pulse"><RocketIcon className="size-3" />Data operations</div>
@@ -520,6 +532,7 @@ export default function PipelinePage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </motion.div>
+      </motion.div>
+    </PageSkeletonWrapper>
   )
 }

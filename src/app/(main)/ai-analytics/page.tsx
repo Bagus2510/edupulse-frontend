@@ -60,6 +60,7 @@ import { toast } from "sonner"
 import { embedDashboard } from "@superset-ui/embedded-sdk"
 import { API_URL, SUPERSET_URL } from "@/lib/constants"
 import { getAccessToken, getCurrentUser, hasMinimumRole } from "@/lib/auth"
+import { useDomain } from "@/lib/domain-context"
 
 function StreamingCursor() {
   return (
@@ -348,6 +349,7 @@ function EmbeddedDashboard({ uuid, title }: { uuid: string; title: string }) {
 export default function AiAnalyticsPage() {
   const user = getCurrentUser()
   const canEdit = hasMinimumRole(user?.role, "editor")
+  const { activeDomainId } = useDomain()
   const [dashboards, setDashboards] = React.useState<DashboardItem[]>([])
   const [dashboardPage, setDashboardPage] = React.useState(0)
   const [selectedDashboard, setSelectedDashboard] = React.useState<DashboardItem | null>(null)
@@ -388,7 +390,7 @@ export default function AiAnalyticsPage() {
   React.useEffect(() => {
     fetchDashboards()
     fetchSessions()
-  }, [])
+  }, [activeDomainId])
 
   React.useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -401,12 +403,18 @@ export default function AiAnalyticsPage() {
   async function fetchDashboards() {
     try {
       const token = getAccessToken()
-      const res = await fetch(`${API_URL}/api/dashboards`, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+      const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {}
+      const url = activeDomainId
+        ? `${API_URL}/api/dashboards?domain_id=${activeDomainId}`
+        : `${API_URL}/api/dashboards`
+      const res = await fetch(url, { headers })
       const data = await res.json()
       setDashboards(data)
       setDashboardPage(0)
       if (data.length > 0) {
         setSelectedDashboard(data[0])
+      } else {
+        setSelectedDashboard(null)
       }
     } catch {
       toast.error("Gagal memuat data dashboard")

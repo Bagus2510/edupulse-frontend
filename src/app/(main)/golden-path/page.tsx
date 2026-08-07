@@ -20,6 +20,7 @@ import { PageSkeletonWrapper } from "@/components/skeletons/page-skeleton-wrappe
 import { GoldenPathSkeleton } from "@/components/skeletons/golden-path-skeleton"
 
 import { API_URL } from "@/lib/constants"
+import { useRouter } from "next/navigation"
 import { getAccessToken, getCurrentUser, hasMinimumRole } from "@/lib/auth"
 
 const SOURCE_PROFILES: Record<string, { label: string; query: string }> = {
@@ -65,7 +66,10 @@ async function readResponse(response: Response, action: string) {
 }
 
 export default function GoldenPathPage() {
+  const router = useRouter()
   const user = getCurrentUser()
+  const isViewer = user?.role === "viewer"
+  const isEditor = user?.role === "editor"
   const canRun = hasMinimumRole(user?.role, "editor")
   const [sourceTable, setSourceTable] = React.useState("raw.tester3")
   const [availableSources, setAvailableSources] = React.useState<string[]>([])
@@ -89,6 +93,10 @@ export default function GoldenPathPage() {
       })
       .catch(() => setAvailableSources([]))
   }, [sourceTable])
+
+  React.useEffect(() => {
+    if (isViewer || isEditor) router.push("/home")
+  }, [isViewer, isEditor, router])
 
   const updatePhase = (key: PhaseKey, state: PhaseState) => {
     setPhaseState((current) => ({ ...current, [key]: state }))
@@ -200,6 +208,8 @@ export default function GoldenPathPage() {
       setRunning(false)
     }
   }
+
+  if (isViewer || isEditor) return null
 
   return (
     <PageSkeletonWrapper skeleton={<GoldenPathSkeleton />}>

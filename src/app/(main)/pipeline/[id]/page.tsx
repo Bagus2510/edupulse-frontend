@@ -132,6 +132,7 @@ export default function PipelineDetailPage() {
   const params = useParams()
   const pipelineId = params.id as string
   const user = getCurrentUser()
+  const isViewer = user?.role === "viewer"
   const canEdit = hasMinimumRole(user?.role, "editor")
   const canDelete = hasMinimumRole(user?.role, "admin")
 
@@ -148,6 +149,10 @@ export default function PipelineDetailPage() {
     fetchPipeline()
     fetchRuns()
   }, [pipelineId])
+
+  React.useEffect(() => {
+    if (isViewer) router.push("/home")
+  }, [isViewer, router])
 
   const fetchPipeline = async () => {
     try {
@@ -221,13 +226,17 @@ export default function PipelineDetailPage() {
     setDeleteOpen(false)
     setDeleting(true)
     try {
-      await fetch(`${API_URL}/api/pipelines/${pipelineId}`, { method: "DELETE" })
+      const token = getAccessToken()
+      const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {}
+      await fetch(`${API_URL}/api/pipelines/${pipelineId}`, { method: "DELETE", headers })
       router.push("/pipeline")
     } catch {
       toast.error("Gagal menghapus pipeline")
       setDeleting(false)
     }
   }
+
+  if (isViewer) return null
 
   if (loading) {
     return <PipelineDetailSkeleton />

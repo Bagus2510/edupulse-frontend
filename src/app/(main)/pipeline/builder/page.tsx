@@ -49,6 +49,7 @@ export default function PipelineBuilderPage() {
   const searchParams = useSearchParams()
   const editId = searchParams.get("id")
   const user = getCurrentUser()
+  const isViewer = user?.role === "viewer"
   const canEdit = hasMinimumRole(user?.role, "editor")
 
   React.useEffect(() => {
@@ -56,6 +57,10 @@ export default function PipelineBuilderPage() {
       router.push("/pipeline")
     }
   }, [canEdit, router])
+
+  React.useEffect(() => {
+    if (isViewer) router.push("/home")
+  }, [isViewer, router])
 
   const [name, setName] = React.useState("")
   const [description, setDescription] = React.useState("")
@@ -198,6 +203,8 @@ export default function PipelineBuilderPage() {
   if (loading) {
     return <PipelineBuilderSkeleton />
   }
+
+  if (isViewer) return null
 
   if (!canEdit) return null
 
