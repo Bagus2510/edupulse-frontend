@@ -37,17 +37,17 @@ Frontend Next.js 16 dengan App Router yang menyediakan UI untuk seluruh fitur Ed
 |-------|-------------|------|
 | `/home` | Beranda dengan overview | Viewer+ |
 | `/dashboard` | BI dashboard Superset tersemat | Viewer+ |
-| `/pipeline` | List semua pipeline | Viewer+ |
+| `/pipeline` | List semua pipeline | Editor+ |
 | `/pipeline/builder` | Buat/edit pipeline | Editor+ |
-| `/pipeline/{id}` | Detail pipeline + run history | Viewer+ |
-| `/datasets` | Jelajahi dataset + quality | Viewer+ |
-| `/domains` | Kelola domain | Viewer+ |
-| `/ai-analytics` | AI chat dengan data | Editor+ |
-| `/lineage` | Data lineage visualization | Viewer+ |
-| `/golden-path` | Golden path analytics | Viewer+ |
+| `/pipeline/{id}` | Detail pipeline + run history | Editor+ |
+| `/datasets` | Jelajahi dataset + quality | Editor+ |
+| `/domains` | Kelola domain | Admin |
+| `/ai-analytics` | AI chat dengan data | Viewer+ |
+| `/lineage` | Data lineage visualization | Editor+ |
+| `/golden-path` | Golden path analytics | Admin |
 | `/admin/users` | Kelola users | Admin |
-| `/docs` | Dokumentasi | Viewer+ |
-| `/settings` | Pengaturan sistem | Viewer+ |
+| `/docs` | Dokumentasi | Admin |
+| `/settings` | Pengaturan sistem | Admin |
 
 ---
 
@@ -168,15 +168,18 @@ frontend/
 | Skeleton | Description |
 |----------|-------------|
 | `page-skeleton-wrapper.tsx` | Wrapper skeleton untuk semua halaman |
-| `datasets-skeleton.tsx` | Skeleton datasets |
+| `home-skeleton.tsx` | Role-aware home skeleton (admin/editor vs viewer) |
+| `datasets-skeleton.tsx` | Skeleton datasets (raw/mart sections) |
+| `pipeline-skeleton.tsx` | Skeleton pipeline list |
 | `pipeline-detail-skeleton.tsx` | Skeleton pipeline detail |
 | `pipeline-builder-skeleton.tsx` | Skeleton pipeline builder |
-| `admin-users-skeleton.tsx` | Skeleton admin users |
+| `admin-users-skeleton.tsx` | Skeleton admin users (header + accounts) |
 | `ai-analytics-skeleton.tsx` | Skeleton AI analytics |
 | `domains-skeleton.tsx` | Skeleton domains |
 | `dashboard-skeleton.tsx` | Skeleton dashboard |
 | `settings-skeleton.tsx` | Skeleton settings |
 | `golden-path-skeleton.tsx` | Skeleton golden path |
+| `lineage-skeleton.tsx` | Skeleton lineage (header + stats + graph) |
 
 ---
 
