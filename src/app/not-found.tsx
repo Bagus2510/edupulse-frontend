@@ -67,7 +67,7 @@ function TerminalLine() {
       transition={{ delay: 0.5, duration: 0.8, ease: "easeOut" }}
       className="font-mono text-xs text-muted-foreground overflow-hidden whitespace-nowrap"
     >
-      <span className="text-pulse">root@edupulse</span>
+      <span className="text-pulse">root@datapulse</span>
       <span className="text-muted-foreground/50">:</span>
       <span className="text-emerald-500">~</span>
       <span className="text-muted-foreground/50">$ </span>
@@ -176,7 +176,7 @@ export default function NotFound() {
           variants={itemVariants}
           className="text-center text-[10px] text-muted-foreground/50 mt-4 font-mono"
         >
-          edupulse analytics platform v1.0.0
+          datapulse analytics platform v1.0.0
         </motion.p>
       </motion.div>
     </div>

@@ -99,11 +99,11 @@ export function Sidebar() {
     <aside className="hidden lg:flex lg:flex-col lg:w-60 lg:border-r bg-card/50 backdrop-blur-sm shrink-0 h-full sticky top-0">
       <div className="flex items-center gap-2.5 px-5 h-16 border-b shrink-0">
         <img
-          src="/logo/edupulse-logo.png"
-          alt="EduPulse Logo"
+          src="/logo/datapulse-logo.png"
+          alt="DataPulse Logo"
           className="h-8 w-auto object-contain"
         />
-        <span className="text-sm font-semibold tracking-tight">EduPulse</span>
+        <span className="text-sm font-semibold tracking-tight">DataPulse</span>
       </div>
 
       <div className="px-3 pt-3 pb-1 shrink-0">

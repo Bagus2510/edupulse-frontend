@@ -20,6 +20,9 @@ import Link from "next/link"
 import * as React from "react"
 import { API_URL } from "@/lib/constants"
 import { getCurrentUser } from "@/lib/auth"
+import dynamic from "next/dynamic"
+
+const ReactECharts = dynamic(() => import("echarts-for-react"), { ssr: false })
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -63,11 +66,67 @@ function AdminHome({ data }: { data: HomeData }) {
   const martFreshness = control_tower?.mart_freshness || []
   const failedPipelines = control_tower?.failed_pipelines || []
   const qualityIssues = control_tower?.data_quality_issues || []
+  const pipelineHealth = control_tower?.pipeline_health || {}
+
+  const pipelineHealthOption = {
+    tooltip: { trigger: "item" as const },
+    series: [
+      {
+        type: "pie",
+        radius: ["50%", "70%"],
+        avoidLabelOverlap: false,
+        itemStyle: { borderRadius: 4, borderColor: "hsl(240 10% 3.9%)", borderWidth: 2 },
+        label: { show: false },
+        emphasis: { label: { show: true, fontSize: 12, fontWeight: "medium", color: "hsl(0 0% 98%)" } },
+        data: Object.entries(pipelineHealth).map(([key, value]) => ({
+          name: key === "success" ? "Berhasil" : key === "failed" ? "Gagal" : key === "running" ? "Berjalan" : key,
+          value,
+          itemStyle: {
+            color: key === "success" ? "#10b981" : key === "failed" ? "#ef4444" : key === "running" ? "#3b82f6" : "#6b7280"
+          }
+        }))
+      }
+    ]
+  }
+
+  const freshnessCount = { fresh: 0, stale: 0, never_built: 0 }
+  martFreshness.forEach(m => {
+    if (m.freshness === "fresh") freshnessCount.fresh++
+    else if (m.freshness === "stale") freshnessCount.stale++
+    else freshnessCount.never_built++
+  })
+
+  const freshnessOption = {
+    tooltip: { trigger: "axis" as const },
+    grid: { left: 40, right: 16, top: 16, bottom: 24 },
+    xAxis: {
+      type: "category" as const,
+      data: ["Fresh", "Stale", "Belum Build"],
+      axisLine: { lineStyle: { color: "hsl(240 3.7% 15.9%)" } },
+      axisLabel: { color: "hsl(0 0% 63.9%)", fontSize: 11 }
+    },
+    yAxis: {
+      type: "value" as const,
+      splitLine: { lineStyle: { color: "hsl(240 3.7% 15.9%)" } },
+      axisLabel: { color: "hsl(0 0% 63.9%)", fontSize: 11 }
+    },
+    series: [{
+      type: "bar",
+      barWidth: 32,
+      data: [
+        { value: freshnessCount.fresh, itemStyle: { color: "#10b981", borderRadius: [4, 4, 0, 0] } },
+        { value: freshnessCount.stale, itemStyle: { color: "#f59e0b", borderRadius: [4, 4, 0, 0] } },
+        { value: freshnessCount.never_built, itemStyle: { color: "#6b7280", borderRadius: [4, 4, 0, 0] } }
+      ]
+    }]
+  }
 
   return (
     <>
       {/* Stats Grid */}
-      <motion.div variants={itemVariants} className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <motion.div variants={itemVariants}>
+        <h2 className="text-base font-semibold tracking-tight mb-3">Statistik</h2>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card className="rounded-lg border-border shadow-none">
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
@@ -119,64 +178,37 @@ function AdminHome({ data }: { data: HomeData }) {
             <p className="text-xs text-muted-foreground mt-1">{stats.success_rate.label}</p>
           </CardContent>
         </Card>
+        </div>
       </motion.div>
 
-      {/* Quick Access */}
+      {/* Charts */}
       <motion.div variants={itemVariants}>
-        <h2 className="text-base font-semibold tracking-tight mb-3">Akses Cepat</h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <Link href="/dashboard" className="block group">
-            <Card className="h-full hover:border-pulse/40 hover:bg-accent/50 transition-all duration-300 rounded-lg border-border shadow-none">
-              <CardContent className="p-4">
-                <div className="size-10 rounded-lg bg-pulse/10 flex items-center justify-center mb-3 group-hover:bg-pulse/20 transition-colors">
-                  <BarChartIcon className="size-5 text-pulse" />
-                </div>
-                <p className="text-sm font-medium">Analitik</p>
-                <p className="text-[10px] text-muted-foreground">Dashboard Superset</p>
-              </CardContent>
-            </Card>
-          </Link>
+        <h2 className="text-base font-semibold tracking-tight mb-3">Grafik</h2>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <Card className="rounded-lg border-border shadow-none">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm">Status Pipeline</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ReactECharts option={pipelineHealthOption} style={{ height: 200 }} />
+            </CardContent>
+          </Card>
 
-          <Link href="/ai-analytics" className="block group">
-            <Card className="h-full hover:border-emerald-500/40 hover:bg-accent/50 transition-all duration-300 rounded-lg border-border shadow-none">
-              <CardContent className="p-4">
-                <div className="size-10 rounded-lg bg-emerald-500/10 flex items-center justify-center mb-3 group-hover:bg-emerald-500/20 transition-colors">
-                  <LightningBoltIcon className="size-5 text-emerald-500" />
-                </div>
-                <p className="text-sm font-medium">Analisis AI</p>
-                <p className="text-[10px] text-muted-foreground">Chat dengan data</p>
-              </CardContent>
-            </Card>
-          </Link>
-
-          <Link href="/datasets" className="block group">
-            <Card className="h-full hover:border-sky-500/40 hover:bg-accent/50 transition-all duration-300 rounded-lg border-border shadow-none">
-              <CardContent className="p-4">
-                <div className="size-10 rounded-lg bg-sky-500/10 flex items-center justify-center mb-3 group-hover:bg-sky-500/20 transition-colors">
-                  <TableIcon className="size-5 text-sky-500" />
-                </div>
-                <p className="text-sm font-medium">Dataset</p>
-                <p className="text-[10px] text-muted-foreground">Kelola data</p>
-              </CardContent>
-            </Card>
-          </Link>
-
-          <Link href="/pipeline" className="block group">
-            <Card className="h-full hover:border-amber-500/40 hover:bg-accent/50 transition-all duration-300 rounded-lg border-border shadow-none">
-              <CardContent className="p-4">
-                <div className="size-10 rounded-lg bg-amber-500/10 flex items-center justify-center mb-3 group-hover:bg-amber-500/20 transition-colors">
-                  <RocketIcon className="size-5 text-amber-500" />
-                </div>
-                <p className="text-sm font-medium">Pipeline</p>
-                <p className="text-[10px] text-muted-foreground">Orkestrasi data</p>
-              </CardContent>
-            </Card>
-          </Link>
+          <Card className="rounded-lg border-border shadow-none">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm">Kesesuaian Data Mart</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ReactECharts option={freshnessOption} style={{ height: 200 }} />
+            </CardContent>
+          </Card>
         </div>
       </motion.div>
 
       {/* Control Tower */}
-      <motion.div variants={itemVariants} className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <motion.div variants={itemVariants}>
+        <h2 className="text-base font-semibold tracking-tight mb-3">Control Tower</h2>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Failed Pipelines */}
         <Card className="rounded-lg border-border shadow-none">
           <CardHeader className="pb-3">
@@ -251,17 +283,13 @@ function AdminHome({ data }: { data: HomeData }) {
             )}
           </CardContent>
         </Card>
+        </div>
       </motion.div>
 
       {/* AI Readiness */}
       <motion.div variants={itemVariants}>
+        <h2 className="text-base font-semibold tracking-tight mb-3">AI Readiness</h2>
         <Card className="rounded-lg border-border shadow-none">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm flex items-center gap-2">
-              <LightningBoltIcon className="size-4 text-emerald-500" />
-              AI Readiness
-            </CardTitle>
-          </CardHeader>
           <CardContent>
             <div className="flex flex-wrap gap-4">
               {control_tower?.ai_readiness?.checks?.map((check, i) => (
@@ -282,10 +310,8 @@ function AdminHome({ data }: { data: HomeData }) {
       {/* Recent Activity */}
       {activities.length > 0 && (
         <motion.div variants={itemVariants}>
+          <h2 className="text-base font-semibold tracking-tight mb-3">Aktivitas Terbaru</h2>
           <Card className="rounded-lg border-border shadow-none">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm">Aktivitas Terbaru</CardTitle>
-            </CardHeader>
             <CardContent>
               <div className="space-y-2">
                 {activities.slice(0, 5).map((a, i) => (
@@ -301,6 +327,60 @@ function AdminHome({ data }: { data: HomeData }) {
           </Card>
         </motion.div>
       )}
+
+      {/* Quick Access - Bottom */}
+      <motion.div variants={itemVariants}>
+        <h2 className="text-base font-semibold tracking-tight mb-3">Akses Cepat</h2>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <Link href="/dashboard" className="block group">
+            <Card className="h-full hover:border-pulse/40 hover:bg-accent/50 transition-all duration-300 rounded-lg border-border shadow-none">
+              <CardContent className="p-4">
+                <div className="size-10 rounded-lg bg-pulse/10 flex items-center justify-center mb-3 group-hover:bg-pulse/20 transition-colors">
+                  <BarChartIcon className="size-5 text-pulse" />
+                </div>
+                <p className="text-sm font-medium">Analitik</p>
+                <p className="text-[10px] text-muted-foreground">Dashboard Superset</p>
+              </CardContent>
+            </Card>
+          </Link>
+
+          <Link href="/ai-analytics" className="block group">
+            <Card className="h-full hover:border-emerald-500/40 hover:bg-accent/50 transition-all duration-300 rounded-lg border-border shadow-none">
+              <CardContent className="p-4">
+                <div className="size-10 rounded-lg bg-emerald-500/10 flex items-center justify-center mb-3 group-hover:bg-emerald-500/20 transition-colors">
+                  <LightningBoltIcon className="size-5 text-emerald-500" />
+                </div>
+                <p className="text-sm font-medium">Analisis AI</p>
+                <p className="text-[10px] text-muted-foreground">Chat dengan data</p>
+              </CardContent>
+            </Card>
+          </Link>
+
+          <Link href="/datasets" className="block group">
+            <Card className="h-full hover:border-sky-500/40 hover:bg-accent/50 transition-all duration-300 rounded-lg border-border shadow-none">
+              <CardContent className="p-4">
+                <div className="size-10 rounded-lg bg-sky-500/10 flex items-center justify-center mb-3 group-hover:bg-sky-500/20 transition-colors">
+                  <TableIcon className="size-5 text-sky-500" />
+                </div>
+                <p className="text-sm font-medium">Dataset</p>
+                <p className="text-[10px] text-muted-foreground">Kelola data</p>
+              </CardContent>
+            </Card>
+          </Link>
+
+          <Link href="/pipeline" className="block group">
+            <Card className="h-full hover:border-amber-500/40 hover:bg-accent/50 transition-all duration-300 rounded-lg border-border shadow-none">
+              <CardContent className="p-4">
+                <div className="size-10 rounded-lg bg-amber-500/10 flex items-center justify-center mb-3 group-hover:bg-amber-500/20 transition-colors">
+                  <RocketIcon className="size-5 text-amber-500" />
+                </div>
+                <p className="text-sm font-medium">Pipeline</p>
+                <p className="text-[10px] text-muted-foreground">Orkestrasi data</p>
+              </CardContent>
+            </Card>
+          </Link>
+        </div>
+      </motion.div>
     </>
   )
 }
@@ -419,7 +499,7 @@ export default function HomePage() {
             <RocketIcon className="size-3" />Selamat datang
           </div>
           <h1 className="text-3xl font-semibold tracking-tight">Ringkasan</h1>
-          <p className="text-sm text-muted-foreground">Pantau kondisi data dan akses analitik EduPulse.</p>
+          <p className="text-sm text-muted-foreground">Pantau kondisi data dan akses analitik DataPulse.</p>
         </motion.div>
 
         {isAdmin ? <AdminHome data={data!} /> : <ViewerHome data={data} />}

@@ -82,7 +82,7 @@ export default function SettingsPage() {
       <motion.div variants={itemVariants} className="space-y-2 border-b border-border pb-5">
         <div className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-[0.16em] text-pulse"><GearIcon className="size-3" />System configuration</div>
         <h1 className="text-3xl font-semibold tracking-tight">Pengaturan</h1>
-        <p className="text-sm text-muted-foreground">Status provider AI dan layanan yang dipakai EduPulse.</p>
+        <p className="text-sm text-muted-foreground">Status provider AI dan layanan yang dipakai DataPulse.</p>
       </motion.div>
 
       {/* Gemini Status */}

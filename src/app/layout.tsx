@@ -16,8 +16,8 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "EduPulse Analytics",
-  description: "Academic data analytics platform for learning insights",
+  title: "DataPulse Analytics",
+  description: "Data analytics platform for any domain",
 };
 
 export default function RootLayout({

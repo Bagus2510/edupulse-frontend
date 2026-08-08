@@ -48,7 +48,7 @@ const architecture = [
     icon: RocketIcon,
     name: "Apache Airflow",
     role: "Orkestrasi pipeline",
-    detail: "Menjalankan DAG, mengatur retry, dan melaporkan status run kembali ke EduPulse.",
+    detail: "Menjalankan DAG, mengatur retry, dan melaporkan status run kembali ke DataPulse.",
   },
   {
     icon: BarChartIcon,
@@ -156,7 +156,7 @@ export default function DocsPage() {
               ))}
             </nav>
             <div className="border-t border-border pt-4 text-[11px] leading-relaxed text-muted-foreground">
-              Dokumen ini mengikuti alur implementasi EduPulse saat ini.
+              Dokumen ini mengikuti alur implementasi DataPulse saat ini.
             </div>
           </div>
         </aside>
@@ -169,10 +169,10 @@ export default function DocsPage() {
             </div>
             <div className="max-w-3xl space-y-3">
               <h1 className="text-3xl font-semibold tracking-tight">
-                Cara EduPulse menjaga data tetap dapat dipercaya.
+                Cara DataPulse menjaga data tetap dapat dipercaya.
               </h1>
               <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
-                EduPulse menghubungkan dataset, pipeline, data mart, dashboard, lineage, dan AI dalam satu alur operasional.
+                DataPulse menghubungkan dataset, pipeline, data mart, dashboard, lineage, dan AI dalam satu alur operasional.
               </p>
             </div>
             <div className="flex flex-wrap gap-2">

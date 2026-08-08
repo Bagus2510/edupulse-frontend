@@ -82,8 +82,8 @@ export function TopNav() {
         <SheetContent side="left" className="w-60 p-0">
           <div className="flex items-center justify-center px-5 h-16 border-b">
             <img
-              src="/logo/edupulse-logo.png"
-              alt="EduPulse Logo"
+              src="/logo/datapulse-logo.png"
+              alt="DataPulse Logo"
               className="h-8 w-auto object-contain"
             />
           </div>
@@ -168,7 +168,7 @@ export function TopNav() {
               </div>
               <div>
                 <p className="text-sm font-semibold">{user?.full_name || "Admin"}</p>
-                <p className="text-xs text-muted-foreground">{user?.email || "admin@edupulse.dev"}</p>
+                <p className="text-xs text-muted-foreground">{user?.email || "admin@datapulse.dev"}</p>
               </div>
             </div>
             <Separator />

@@ -215,8 +215,8 @@ function ParallaxPanel() {
           style={{ x: logoX, y: logoY }}
         >
           <img
-            src="/logo/edupulse-logo.png"
-            alt="EduPulse Logo"
+            src="/logo/datapulse-logo.png"
+            alt="DataPulse Logo"
             className="h-24 w-auto object-contain rounded-[10px]"
           />
           {/* Logo glow */}
@@ -231,7 +231,7 @@ function ParallaxPanel() {
             y: useTransform(smoothY, [-0.5, 0.5], [-5, 5]),
           }}
         >
-          Platform analitik akademik untuk visualisasi data, pemantauan pipeline, dan pengambilan keputusan berbasis data.
+          Platform analitik untuk visualisasi data, pemantauan pipeline, dan pengambilan keputusan berbasis data.
         </motion.p>
 
         {/* Status badges — fast layer */}
@@ -371,7 +371,7 @@ export default function LoginPage() {
           <motion.div variants={itemVariants} className="flex justify-center mb-8 lg:hidden">
             <img
               src="/logo/edupulse-logo.png"
-              alt="EduPulse Logo"
+            alt="DataPulse Logo"
               className="h-12 w-auto object-contain rounded-[10px]"
             />
           </motion.div>
@@ -399,7 +399,7 @@ export default function LoginPage() {
                         type="email"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
-                        placeholder="admin@edupulse.dev"
+                        placeholder="admin@datapulse.dev"
                         className="h-10 pl-10"
                       />
                     </div>

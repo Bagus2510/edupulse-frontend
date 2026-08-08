@@ -335,7 +335,7 @@ export default function AdminUsersPage() {
             <Label htmlFor="user-email" className="text-xs">Email</Label>
             <div className="relative">
               <EnvelopeClosedIcon className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
-              <Input id="user-email" type="email" value={form.email} onChange={(event) => updateForm("email", event.target.value)} placeholder="user@edupulse.dev" className="pl-9" required />
+              <Input id="user-email" type="email" value={form.email} onChange={(event) => updateForm("email", event.target.value)} placeholder="user@datapulse.dev" className="pl-9" required />
             </div>
           </div>
           <div className="space-y-1.5">
