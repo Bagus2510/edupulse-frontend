@@ -1,4 +1,4 @@
-# 🎨 EduPulse Frontend
+# 🎨 Datapulse Frontend
 
 <div align="center">
 
@@ -18,7 +18,7 @@
 
 ## 📖 About The Project
 
-Frontend Next.js 16 dengan App Router yang menyediakan UI untuk seluruh fitur EduPulse — pipeline builder, dataset browser, BI dashboard tersemat, AI chat, dan admin panel dengan RBAC.
+Frontend Next.js 16 dengan App Router yang menyediakan UI untuk seluruh fitur Datapulse — pipeline builder, dataset browser, BI dashboard tersemat, AI chat, dan admin panel dengan RBAC.
 
 ### 🎯 Key Features
 
@@ -74,8 +74,8 @@ Frontend Next.js 16 dengan App Router yang menyediakan UI untuk seluruh fitur Ed
 
 1. **Clone the repository**
 ```bash
-git clone https://github.com/Bagus2510/edupulse.git
-cd edupulse/frontend
+git clone https://github.com/Bagus2510/datapulse.git
+cd datapulse/frontend
 ```
 
 2. **Install dependencies**
@@ -290,7 +290,7 @@ const { activeDomainId } = useDomain()
 
 ## 🙏 Acknowledgments
 
-- Built as part of EduPulse — Analytics Platform for Education
+- Built as part of Datapulse — Analytics Platform for Education
 - UI components powered by shadcn/ui
 
 ---
