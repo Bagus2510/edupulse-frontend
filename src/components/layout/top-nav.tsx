@@ -50,7 +50,6 @@ const navItems = [
   { label: "Dataset", href: "/datasets", icon: TableIcon, roles: ["editor", "admin"] },
   { label: "Alur Data", href: "/lineage", icon: LoopIcon, roles: ["editor", "admin"] },
   { label: "Domain", href: "/domains", icon: GlobeIcon, roles: ["admin"] },
-  { label: "Golden Path", href: "/golden-path", icon: LightningBoltIcon, roles: ["admin"] },
   { label: "Dokumentasi", href: "/docs", icon: FileTextIcon, roles: ["admin"] },
   { label: "Pengaturan", href: "/settings", icon: GearIcon, roles: ["admin"] },
   { label: "Kelola User", href: "/admin/users", icon: PersonIcon, roles: ["admin"] },

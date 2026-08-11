@@ -315,7 +315,6 @@ export default function DocsPage() {
               ))}
             </div>
             <div className="flex flex-wrap gap-3 border border-border bg-muted/20 p-4">
-              <Button type="button" size="sm" className="rounded-md" onClick={() => window.location.assign("/golden-path")}><RocketIcon className="mr-2 size-3.5" />Jalankan Golden Path</Button>
               <Button type="button" size="sm" variant="outline" className="rounded-md" onClick={() => window.location.assign("/datasets")}><CubeIcon className="mr-2 size-3.5" />Buka dataset</Button>
               <Button type="button" size="sm" variant="outline" className="rounded-md" onClick={() => window.location.assign("/lineage")}><ArrowRightIcon className="mr-2 size-3.5" />Lihat lineage</Button>
               <Button type="button" size="sm" variant="outline" className="rounded-md" onClick={() => window.location.assign("/ai-analytics")}><LightningBoltIcon className="mr-2 size-3.5" />Coba AI evidence</Button>

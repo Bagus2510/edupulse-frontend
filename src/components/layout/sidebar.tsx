@@ -64,12 +64,6 @@ const navItems = [
     roles: ["admin"],
   },
   {
-    label: "Golden Path",
-    href: "/golden-path",
-    icon: LightningBoltIcon,
-    roles: ["admin"],
-  },
-  {
     label: "Dokumentasi",
     href: "/docs",
     icon: FileTextIcon,
