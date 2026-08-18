@@ -398,7 +398,7 @@ function ViewerHome({ data }: { data: HomeData | null }) {
             </div>
           </CardHeader>
           <CardContent>
-            <span className="text-3xl font-bold tracking-tighter font-mono">{data?.stats.domains || 0}</span>
+            <span className="text-3xl font-bold tracking-tighter font-mono">{data?.stats.domains.value || 0}</span>
             <p className="text-xs text-muted-foreground mt-1">domain terdaftar</p>
           </CardContent>
         </Card>

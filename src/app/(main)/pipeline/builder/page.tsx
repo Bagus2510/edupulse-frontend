@@ -75,12 +75,6 @@ export default function PipelineBuilderPage() {
   const [saving, setSaving] = React.useState(false)
   const [loading, setLoading] = React.useState(!!editId)
 
-  React.useEffect(() => {
-    fetchTables()
-    fetchDomains()
-    if (editId) fetchPipeline(parseInt(editId))
-  }, [editId])
-
   const fetchTables = async () => {
     try {
       const token = getAccessToken()
@@ -108,12 +102,18 @@ export default function PipelineBuilderPage() {
 
   const fetchPipeline = async (id: number) => {
     try {
-      const res = await fetch(`${API_URL}/api/pipelines/${id}`)
+      const token = getAccessToken()
+      const res = await fetch(`${API_URL}/api/pipelines/${id}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
       const data = await res.json()
+      if (!res.ok || typeof data?.name !== "string") {
+        throw new Error(data?.detail || "Data pipeline tidak valid")
+      }
       setName(data.name)
-      setDescription(data.description || "")
-      setMaxActiveRuns(data.max_active_runs || 1)
-      setOnFailureCallback(data.on_failure_callback || "")
+      setDescription(typeof data.description === "string" ? data.description : "")
+      setMaxActiveRuns(typeof data.max_active_runs === "number" ? data.max_active_runs : 1)
+      setOnFailureCallback(typeof data.on_failure_callback === "string" ? data.on_failure_callback : "")
       setDomainId(data.domain_id ? String(data.domain_id) : "")
 
       // Restore schedule option
@@ -128,12 +128,12 @@ export default function PipelineBuilderPage() {
       }
 
       setSteps(
-        data.steps.map((s: Record<string, unknown>) => ({
+        (Array.isArray(data.steps) ? data.steps : []).map((s: Record<string, unknown>) => ({
           id: String(s.id),
           name: s.name as string,
           source_table: (s.source_table as string) || "",
-          query: s.query as string,
-          query_type: s.query_type as "sql" | "python",
+          query: (s.query as string) || "",
+          query_type: (s.query_type as "sql" | "python") || "sql",
           dest_table: (s.dest_table as string) || "",
           execution_timeout: (s.execution_timeout as number) || 300,
           retries: (s.retries as number) || 1,
@@ -146,6 +146,12 @@ export default function PipelineBuilderPage() {
       setLoading(false)
     }
   }
+
+  React.useEffect(() => {
+    fetchTables()
+    fetchDomains()
+    if (editId) fetchPipeline(parseInt(editId))
+  }, [editId])
 
   const getScheduleInterval = (): string => {
     if (scheduleOption === "custom") return customCron.trim()
@@ -189,10 +195,13 @@ export default function PipelineBuilderPage() {
         body: JSON.stringify(payload),
       })
 
-      if (res.ok) {
-        const data = await res.json()
-        router.push(`/pipeline/${data.id}`)
+      if (!res.ok) {
+        const error = await res.json().catch(() => null)
+        throw new Error(error?.detail || "Gagal menyimpan pipeline")
       }
+      const data = await res.json()
+      if (!data?.id) throw new Error("Response pipeline tidak valid")
+      router.push(`/pipeline/${data.id}`)
     } catch {
       toast.error("Gagal menyimpan pipeline")
     } finally {
@@ -389,7 +398,7 @@ export default function PipelineBuilderPage() {
         <Button
           className="bg-pulse hover:bg-pulse/90 text-background flex-1 sm:flex-none"
           onClick={handleSave}
-          disabled={saving || !name.trim() || steps.length === 0}
+          disabled={saving || !(name || "").trim() || steps.length === 0}
         >
           {saving ? (
             <ReloadIcon className="size-3.5 mr-1.5 animate-spin" />

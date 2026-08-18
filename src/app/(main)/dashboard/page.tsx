@@ -115,7 +115,6 @@ function EmbeddedDashboard({ dashboardUuid, title }: { dashboardUuid: string; ti
             hideTitle: true,
             hideTab: true,
             hideChartControls: true,
-            hideHeader: false,
           },
         })
         if (!cancelled) setLoading(false)
