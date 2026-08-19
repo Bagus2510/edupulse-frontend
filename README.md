@@ -44,7 +44,7 @@ Frontend Next.js 16 dengan App Router yang menyediakan UI untuk seluruh fitur Da
 | `/domains` | Kelola domain | Admin |
 | `/ai-analytics` | AI chat dengan data | Viewer+ |
 | `/lineage` | Data lineage visualization | Editor+ |
-| `/golden-path` | Golden path analytics | Admin |
+
 | `/admin/users` | Kelola users | Admin |
 | `/docs` | Dokumentasi | Admin |
 | `/settings` | Pengaturan sistem | Admin |
@@ -116,7 +116,7 @@ frontend/
 │   │   │   ├── domains/             # Domain management
 │   │   │   ├── ai-analytics/        # AI chat
 │   │   │   ├── lineage/             # Data lineage
-│   │   │   ├── golden-path/         # Golden path analytics
+
 │   │   │   ├── admin/users/         # User management
 │   │   │   ├── docs/                # Dokumentasi
 │   │   │   └── settings/            # Pengaturan
@@ -130,7 +130,8 @@ frontend/
 │   │   └── pipeline/                # Pipeline-specific components
 │   │
 │   └── lib/
-│       ├── auth.ts                  # Auth utilities + RBAC
+│       ├── auth.tsx                 # Auth utilities + RBAC
+│       ├── api-client.ts            # Bearer auth, JSON parsing, typed ApiError
 │       ├── constants.ts             # API URLs, defaults
 │       ├── domain-context.ts        # Domain state provider
 │       └── utils.ts                 # cn() helper
@@ -178,7 +179,7 @@ frontend/
 | `domains-skeleton.tsx` | Skeleton domains |
 | `dashboard-skeleton.tsx` | Skeleton dashboard |
 | `settings-skeleton.tsx` | Skeleton settings |
-| `golden-path-skeleton.tsx` | Skeleton golden path |
+
 | `lineage-skeleton.tsx` | Skeleton lineage (header + stats + graph) |
 
 ---
@@ -230,18 +231,15 @@ const canDelete = hasMinimumRole(user?.role, "admin")
 
 ## 📡 API Calls
 
+Client component menggunakan helper terpusat agar Bearer token, parsing JSON, dan error API konsisten:
+
 ```tsx
-import { API_URL } from "@/lib/constants"
-import { getAccessToken } from "@/lib/auth"
+import { apiFetch } from "@/lib/api-client"
 
-const token = getAccessToken()
-const headers: Record<string, string> = token 
-  ? { Authorization: `Bearer ${token}` } 
-  : {}
-
-const res = await fetch(`${API_URL}/api/pipelines`, { headers })
-const data = await res.json()
+const pipelines = await apiFetch<Pipeline[]>("/api/pipelines")
 ```
+
+Frontend mengikuti pola BFF: browser memanggil FastAPI, bukan Airflow API atau secret-bearing Superset endpoint secara langsung. Hanya URL publik yang boleh memakai prefix `NEXT_PUBLIC_*`.
 
 ---
 
@@ -276,6 +274,22 @@ const { activeDomainId } = useDomain()
 | `npm run lint` | ESLint |
 
 ---
+
+## 🛡️ Implementation Notes
+
+- Pipeline Builder memvalidasi response API dan memberi default aman untuk nama, steps, serta schedule sehingga nilai `undefined` tidak memicu `.trim()` runtime error.
+- `api-client.ts` mengirim Bearer token, memvalidasi response JSON, dan melempar `ApiError` bertipe.
+- AI chat menerima SSE evidence sebelum jawaban, menampilkan coverage, confidence, source chart, row count, dan limitation.
+- Nama fallback `Chart 9` dinormalisasi backend sebelum response ditampilkan; renderer mendukung `-`, `*`, `+`, numbered list, dan indentasi tanpa menampilkan marker mentah.
+- UI mempertahankan dark-tech visual language dan local typewriter setelah response AI tervalidasi.
+
+## 🧪 Build Validation
+
+```bash
+npm run build
+```
+
+Script memakai Next.js webpack build dan mencakup compile, TypeScript check, serta static page generation.
 
 ## 🔮 Future Improvements
 
