@@ -130,22 +130,22 @@ function EvidencePanel({ evidence }: { evidence: ChatEvidence }) {
   return (
     <div className="mt-4 rounded-md border border-pulse/20 bg-pulse/[0.03] p-3 text-[11px]">
       <div className="mb-3 flex items-center justify-between gap-3">
-        <span className="font-semibold uppercase tracking-[0.14em] text-pulse">Evidence source</span>
+        <span className="font-semibold uppercase tracking-[0.14em] text-pulse">Sumber evidence</span>
         <a href={evidence.lineage_url} className="text-muted-foreground underline-offset-2 hover:text-pulse hover:underline">
           Lihat lineage
         </a>
       </div>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <div><p className="text-muted-foreground">Coverage</p><p className="font-medium">{evidence.data_coverage}</p></div>
+        <div><p className="text-muted-foreground">Cakupan</p><p className="font-medium">{evidence.data_coverage}</p></div>
         <div><p className="text-muted-foreground">Rows tersedia</p><p className="font-medium font-mono">{evidence.total_rows_available.toLocaleString()}</p></div>
-        <div><p className="text-muted-foreground">Confidence</p><p className="font-medium">{confidence}%</p></div>
-        <div><p className="text-muted-foreground">Status</p><p className={`font-medium ${evidence.context_status === "ready" ? "text-emerald-500" : "text-amber-500"}`}>{evidence.context_status === "ready" ? "Ready" : "Limited"}</p></div>
+        <div><p className="text-muted-foreground">Keyakinan</p><p className="font-medium">{confidence}%</p></div>
+        <div><p className="text-muted-foreground">Status</p><p className={`font-medium ${evidence.context_status === "ready" ? "text-emerald-500" : "text-amber-500"}`}>{evidence.context_status === "ready" ? "Siap" : "Terbatas"}</p></div>
       </div>
       {evidence.source_charts.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-1.5">
           {evidence.source_charts.map((chart) => (
             <span key={`${chart.name}-${chart.viz_type}`} className="rounded-md border border-border/60 bg-background/40 px-2 py-1 text-muted-foreground">
-              {chart.name} <span className="font-mono text-foreground/70">({chart.rows})</span>
+              {chart.name} <span className="font-mono text-foreground/70">({(chart.rows_available ?? chart.rows ?? 0).toLocaleString()} baris)</span>
             </span>
           ))}
         </div>
@@ -198,8 +198,14 @@ function SimpleMarkdown({ content, isStreaming = false, animate = false, onCompl
     } else if (line.startsWith("### ")) {
       flushList()
       elements.push(<h3 key={i} className="text-sm font-semibold mt-3 mb-1 text-foreground">{renderInline(line.slice(4))}</h3>)
-    } else if (line.match(/^[-*]\s/)) {
-      listItems.push(<li key={i} className="text-muted-foreground">{renderInline(line.slice(2))}</li>)
+    } else if (/^\s*(?:[-*+]|\d+\.)\s+/.test(line)) {
+      const indentation = line.length - line.trimStart().length
+      const itemText = line.trimStart().replace(/^(?:[-*+]|\d+\.)\s+/, "")
+      listItems.push(
+        <li key={i} className={`text-muted-foreground ${indentation > 0 ? "ml-4 marker:text-muted-foreground/60" : ""}`}>
+          {renderInline(itemText)}
+        </li>
+      )
     } else if (line.trim() === "") {
       flushList()
     } else {
@@ -244,12 +250,25 @@ interface DashboardItem {
 
 interface ChatEvidence {
   dashboard_uuid: string
-  source_charts: { name: string; viz_type: string; rows: number }[]
+  source_charts: {
+    chart_id: number | string | null
+    name: string
+    viz_type: string
+    source_schema?: string | null
+    source_table?: string | null
+    rows_available: number
+    rows?: number
+    sample_rows?: Record<string, unknown>[]
+    numeric_summary?: Record<string, Record<string, number>>
+    missing_rate?: Record<string, number>
+  }[]
   data_coverage: string
   total_rows_available: number
   confidence: number
   limitations: string[]
   lineage_url: string
+  context_timestamp?: string
+  sample_limit_per_chart?: number
   context_status: "ready" | "limited"
 }
 

@@ -8,19 +8,14 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { StepEditor, PipelineStep } from "@/components/pipeline/step-editor"
-import { RocketIcon, ArrowLeftIcon, ReloadIcon, FileTextIcon } from "@radix-ui/react-icons"
+import { ArrowLeftIcon, ReloadIcon, FileTextIcon } from "@radix-ui/react-icons"
 import { FieldGuide } from "@/components/pipeline/field-guide"
 import { motion, type Variants } from "motion/react"
 import { toast } from "sonner"
-import { API_URL } from "@/lib/constants"
-import { getAccessToken, getCurrentUser, hasMinimumRole } from "@/lib/auth"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+
+import { apiFetch } from "@/lib/api-client"
+import { getCurrentUser, hasMinimumRole } from "@/lib/auth"
+
 import { DomainSelect } from "@/components/ui/domain-select"
 import { InlineSelect } from "@/components/ui/inline-select"
 import { PipelineBuilderSkeleton } from "@/components/skeletons/pipeline-builder-skeleton"
@@ -77,12 +72,8 @@ export default function PipelineBuilderPage() {
 
   const fetchTables = async () => {
     try {
-      const token = getAccessToken()
-      const res = await fetch(`${API_URL}/api/pipelines/tables`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      })
-      const data = await res.json()
-      setTables(Array.isArray(data) ? data : [])
+      const data = await apiFetch<unknown>("/api/pipelines/tables")
+      setTables(Array.isArray(data) ? data as { full_name: string }[] : [])
     } catch {
       toast.error("Gagal memuat daftar tabel")
       setTables([])
@@ -91,9 +82,8 @@ export default function PipelineBuilderPage() {
 
   const fetchDomains = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/domains`)
-      const data = await res.json()
-      setDomains(Array.isArray(data) ? data : [])
+      const data = await apiFetch<unknown>("/api/domains")
+      setDomains(Array.isArray(data) ? data as { id: number; name: string }[] : [])
     } catch {
       toast.error("Gagal memuat daftar domain")
       setDomains([])
@@ -102,13 +92,10 @@ export default function PipelineBuilderPage() {
 
   const fetchPipeline = async (id: number) => {
     try {
-      const token = getAccessToken()
-      const res = await fetch(`${API_URL}/api/pipelines/${id}`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      })
-      const data = await res.json()
-      if (!res.ok || typeof data?.name !== "string") {
-        throw new Error(data?.detail || "Data pipeline tidak valid")
+      const data = await apiFetch<Record<string, unknown>>(`/api/pipelines/${id}`)
+      if (typeof data?.name !== "string") {
+        const detail = typeof data?.detail === "string" ? data.detail : "Data pipeline tidak valid"
+        throw new Error(detail)
       }
       setName(data.name)
       setDescription(typeof data.description === "string" ? data.description : "")
@@ -117,7 +104,7 @@ export default function PipelineBuilderPage() {
       setDomainId(data.domain_id ? String(data.domain_id) : "")
 
       // Restore schedule option
-      const interval = data.schedule_interval || ""
+      const interval = typeof data.schedule_interval === "string" ? data.schedule_interval : ""
       if (!interval) {
         setScheduleOption("manual")
       } else if (SCHEDULE_OPTIONS.some((o) => o.value === interval)) {
@@ -170,7 +157,7 @@ export default function PipelineBuilderPage() {
         on_failure_callback: onFailureCallback.trim(),
         schedule_interval: getScheduleInterval(),
         domain_id: domainId ? parseInt(domainId) : null,
-        steps: steps.map((s, i) => ({
+        steps: steps.map((s) => ({
           name: s.name,
           source_table: s.source_table,
           query: s.query,
@@ -182,24 +169,13 @@ export default function PipelineBuilderPage() {
         })),
       }
 
-      const url = editId ? `${API_URL}/api/pipelines/${editId}` : `${API_URL}/api/pipelines`
+      const path = editId ? `/api/pipelines/${editId}` : "/api/pipelines"
       const method = editId ? "PUT" : "POST"
-      const token = getAccessToken()
 
-      const res = await fetch(url, {
+      const data = await apiFetch<{ id?: number }>(path, {
         method,
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
         body: JSON.stringify(payload),
       })
-
-      if (!res.ok) {
-        const error = await res.json().catch(() => null)
-        throw new Error(error?.detail || "Gagal menyimpan pipeline")
-      }
-      const data = await res.json()
       if (!data?.id) throw new Error("Response pipeline tidak valid")
       router.push(`/pipeline/${data.id}`)
     } catch {
