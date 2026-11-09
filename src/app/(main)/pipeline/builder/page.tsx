@@ -135,6 +135,7 @@ export default function PipelineBuilderPage() {
   }
 
   React.useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- loaders update state only after awaited API calls.
     fetchTables()
     fetchDomains()
     if (editId) fetchPipeline(parseInt(editId))
@@ -268,22 +269,20 @@ export default function PipelineBuilderPage() {
               </div>
               <div className="space-y-1.5">
                 <div className="flex items-center gap-1.5">
-                  <Label className="text-xs">On Failure Callback (opsional)</Label>
+                  <Label className="text-xs">Failure Callback (belum aktif)</Label>
                   <FieldGuide
-                    title="On Failure Callback"
-                    description="URL endpoint yang akan dipanggil oleh Airflow ketika pipeline gagal. Berguna untuk mengirim notifikasi ke Slack, email, atau sistem monitoring."
+                    title="Failure Callback"
+                    description="Pipeline saat ini mencatat error ke riwayat run, tetapi belum mengirim webhook eksternal."
                     tips={[
-                      "Format: https://your-webhook.com/notify",
-                      "Airflow akan POST info error ke URL ini",
-                      "Contoh: Slack Incoming Webhook URL",
-                      "Kosongkan jika tidak butuh notifikasi",
+                      "Detail error tersedia di halaman riwayat run",
+                      "Webhook Slack/email belum diimplementasikan",
                     ]}
                   />
                 </div>
                 <Input
                   value={onFailureCallback}
-                  onChange={(e) => setOnFailureCallback(e.target.value)}
-                  placeholder="https://webhook.example.com/notify"
+                  disabled
+                  placeholder="Webhook belum didukung"
                   className="h-9"
                 />
               </div>

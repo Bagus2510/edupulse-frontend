@@ -27,11 +27,12 @@ import {
   CrossCircledIcon,
   ClockIcon,
   LightningBoltIcon,
-  PersonIcon,
+
 } from "@radix-ui/react-icons"
 import { motion } from "motion/react"
 import { toast } from "sonner"
 import { API_URL } from "@/lib/constants"
+import { apiFetch } from "@/lib/api-client"
 import { getAccessToken, getCurrentUser, hasMinimumRole } from "@/lib/auth"
 import { PipelineDetailSkeleton } from "@/components/skeletons/pipeline-detail-skeleton"
 
@@ -144,17 +145,14 @@ export default function PipelineDetailPage() {
   const [progress, setProgress] = React.useState(0)
   const [deleting, setDeleting] = React.useState(false)
   const [deleteOpen, setDeleteOpen] = React.useState(false)
+  const pollRef = React.useRef<ReturnType<typeof setInterval> | null>(null)
 
-  React.useEffect(() => {
-    fetchPipeline()
-    fetchRuns()
-  }, [pipelineId])
 
   React.useEffect(() => {
     if (isViewer) router.push("/home")
   }, [isViewer, router])
 
-  const fetchPipeline = async () => {
+  const fetchPipeline = React.useCallback(async () => {
     try {
       const token = getAccessToken()
       const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {}
@@ -166,9 +164,9 @@ export default function PipelineDetailPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [pipelineId, router])
 
-  const fetchRuns = async () => {
+  const fetchRuns = React.useCallback(async () => {
     try {
       const token = getAccessToken()
       const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {}
@@ -178,46 +176,58 @@ export default function PipelineDetailPage() {
     } catch {
       toast.error("Gagal memuat riwayat run")
     }
-  }
+  }, [pipelineId])
+
+  React.useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- loaders update state only after awaited API calls.
+    void fetchPipeline()
+    void fetchRuns()
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current)
+    }
+  }, [fetchPipeline, fetchRuns])
 
   const handleRun = async () => {
     setRunning(true)
     setProgress(0)
     setRunStatus("running")
     try {
-      const token = getAccessToken()
-      await fetch(`${API_URL}/api/pipelines/${pipelineId}/run`, {
-        method: "POST",
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      })
+      await apiFetch(`/api/pipelines/${pipelineId}/run`, { method: "POST" })
       pollStatus()
-    } catch {
-      toast.error("Gagal menjalankan pipeline")
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Gagal menjalankan pipeline")
       setRunning(false)
       setRunStatus("failed")
     }
   }
 
   const pollStatus = () => {
-    const interval = setInterval(async () => {
+    if (pollRef.current) clearInterval(pollRef.current)
+    pollRef.current = setInterval(async () => {
       try {
-        const res = await fetch(`${API_URL}/api/pipelines/${pipelineId}/status`)
-        const data = await res.json()
+        const data = await apiFetch<{
+          status: string
+          tasks_total: number
+          tasks_completed: number
+        }>(`/api/pipelines/${pipelineId}/status`)
         setRunStatus(data.status)
         if (data.tasks_total) {
           setProgress(data.tasks_completed ? (data.tasks_completed / data.tasks_total) * 100 : 10)
         }
         if (data.status === "success" || data.status === "failed") {
-          clearInterval(interval)
+          if (pollRef.current) clearInterval(pollRef.current)
+          pollRef.current = null
           setProgress(100)
           setRunning(false)
           fetchPipeline()
           fetchRuns()
         }
-      } catch {
-        toast.error("Gagal memeriksa status pipeline")
-        clearInterval(interval)
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Gagal memeriksa status pipeline")
+        if (pollRef.current) clearInterval(pollRef.current)
+        pollRef.current = null
         setRunning(false)
+        setRunStatus("failed")
       }
     }, 3000)
   }
@@ -301,7 +311,7 @@ export default function PipelineDetailPage() {
         </CardContent>
       </Card>
 
-      {runStatus === "running" && (
+      {(runStatus === "running" || runStatus === "queued") && (
         <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }}>
           <Card className="border-amber-500/30 bg-amber-500/5">
             <CardContent className="py-4">
@@ -311,7 +321,7 @@ export default function PipelineDetailPage() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between mb-2">
-                    <p className="text-sm font-medium">Pipeline berjalan...</p>
+                    <p className="text-sm font-medium">{runStatus === "queued" ? "Pipeline menunggu..." : "Pipeline berjalan..."}</p>
                     <span className="text-xs text-muted-foreground font-mono">{Math.round(progress)}%</span>
                   </div>
                   <Progress value={progress} className="h-2" />
@@ -408,7 +418,7 @@ export default function PipelineDetailPage() {
                       </span>
                     </div>
                     {run.run_id && (
-                      <span className="text-[10px] font-mono text-muted-foreground truncate max-w-[200px]">{run.run_id}</span>
+                      <span className="text-[10px] font-mono text-muted-foreground truncate max-w-50">{run.run_id}</span>
                     )}
                   </div>
 

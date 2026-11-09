@@ -22,6 +22,7 @@ import * as React from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { API_URL } from "@/lib/constants"
+import { apiFetch } from "@/lib/api-client"
 import { getAccessToken, getCurrentUser, hasMinimumRole } from "@/lib/auth"
 import { useDomain } from "@/lib/domain-context"
 import { PageSkeletonWrapper } from "@/components/skeletons/page-skeleton-wrapper"
@@ -70,19 +71,6 @@ interface Pipeline {
   quality_status: string | null
 }
 
-function StatusDot({ status }: { status: PipelineStatus }) {
-  const colors: Record<string, string> = {
-    draft: "bg-muted-foreground/40",
-    active: "bg-emerald-500",
-    running: "bg-amber-500 animate-pulse",
-    queued: "bg-slate-400 animate-pulse",
-    success: "bg-emerald-500",
-    failed: "bg-red-400",
-  }
-  return (
-    <span className={`size-2 rounded-full ${colors[status] || colors.draft}`} />
-  )
-}
 
 function StatusBadge({ status }: { status: PipelineStatus }) {
   const variants: Record<string, string> = {
@@ -134,57 +122,58 @@ export default function PipelinePage() {
     if (isViewer) router.push("/home")
   }, [isViewer, router])
 
-  React.useEffect(() => {
-    fetchPipelines()
-    return () => { if (pollRef.current) clearInterval(pollRef.current) }
-  }, [activeDomainId])
 
   const startPolling = () => {
     if (pollRef.current) clearInterval(pollRef.current)
     pollRef.current = setInterval(async () => {
-      const token = getAccessToken()
-      const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {}
-      const res = await fetch(`${API_URL}/api/pipelines`, { headers })
-      const data = await res.json()
-      setPipelines(data)
-      const hasRunning = data.some((p: Pipeline) => p.status === "running")
-      if (!hasRunning && pollRef.current) {
-        clearInterval(pollRef.current)
+      try {
+        const path = activeDomainId
+          ? `/api/pipelines?domain_id=${activeDomainId}`
+          : "/api/pipelines"
+        const data = await apiFetch<Pipeline[]>(path)
+        setPipelines(data)
+        const hasRunning = data.some((pipeline) => pipeline.status === "running" || pipeline.status === "queued")
+        if (!hasRunning && pollRef.current) {
+          clearInterval(pollRef.current)
+          pollRef.current = null
+        }
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Gagal memperbarui status pipeline")
+        if (pollRef.current) clearInterval(pollRef.current)
         pollRef.current = null
       }
     }, 3000)
   }
 
-  async function fetchPipelines() {
+  const fetchPipelines = React.useCallback(async () => {
     try {
-      const token = getAccessToken()
-      const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {}
-      const url = activeDomainId
-        ? `${API_URL}/api/pipelines?domain_id=${activeDomainId}`
-        : `${API_URL}/api/pipelines`
-      const res = await fetch(url, { headers })
-      const data = await res.json()
+      const path = activeDomainId
+        ? `/api/pipelines?domain_id=${activeDomainId}`
+        : "/api/pipelines"
+      const data = await apiFetch<Pipeline[]>(path)
       setPipelines(data)
-    } catch {
-      toast.error("Gagal memuat data pipeline")
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Gagal memuat data pipeline")
     } finally {
       setLoading(false)
     }
-  }
+  }, [activeDomainId])
+
+  React.useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- loader updates state only after awaited API calls.
+    void fetchPipelines()
+    return () => { if (pollRef.current) clearInterval(pollRef.current) }
+  }, [fetchPipelines])
 
   const handleRun = async (id: number, e: React.MouseEvent) => {
     e.stopPropagation()
     setRunningId(id)
     try {
-      const token = getAccessToken()
-      await fetch(`${API_URL}/api/pipelines/${id}/run`, {
-        method: "POST",
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      })
-      fetchPipelines()
+      await apiFetch(`/api/pipelines/${id}/run`, { method: "POST" })
+      await fetchPipelines()
       startPolling()
-    } catch {
-      toast.error("Gagal menjalankan pipeline")
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Gagal menjalankan pipeline")
     } finally {
       setRunningId(null)
     }
@@ -205,31 +194,23 @@ export default function PipelinePage() {
   }
 
   const toggleActive = async (id: number) => {
-    const token = getAccessToken()
     try {
-      await fetch(`${API_URL}/api/pipelines/${id}/toggle-active`, {
-        method: "PATCH",
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      })
-      fetchPipelines()
-    } catch {
-      toast.error("Gagal mengubah status pipeline")
+      await apiFetch(`/api/pipelines/${id}/toggle-active`, { method: "PATCH" })
+      await fetchPipelines()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Gagal mengubah status pipeline")
     }
   }
 
   const handleInterrupt = async () => {
     if (!interruptTarget) return
     setInterrupting(true)
-    const token = getAccessToken()
     try {
-      await fetch(`${API_URL}/api/pipelines/${interruptTarget.id}/cancel`, {
-        method: "POST",
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      })
+      await apiFetch(`/api/pipelines/${interruptTarget.id}/cancel`, { method: "POST" })
       setInterruptTarget(null)
-      fetchPipelines()
-    } catch {
-      toast.error("Gagal menghentikan pipeline")
+      await fetchPipelines()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Gagal menghentikan pipeline")
     } finally {
       setInterrupting(false)
     }
@@ -329,17 +310,19 @@ export default function PipelinePage() {
                         {pipeline.quality_status && (
                           <div className="text-center">
                             <Badge variant="outline" className={`text-[10px] font-medium px-1.5 py-0 ${
-                              pipeline.quality_status === "pass"
+                              pipeline.quality_status === "passed"
                                 ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
-                                : pipeline.quality_status === "fail"
+                                : pipeline.quality_status === "failed"
                                 ? "bg-red-500/10 text-red-400 border-red-500/20"
+                                : pipeline.quality_status === "warning"
+                                ? "bg-amber-500/10 text-amber-400 border-amber-500/20"
                                 : "bg-muted text-muted-foreground border-border/50"
                             }`}>
                               {pipeline.quality_status}
                             </Badge>
                           </div>
                         )}
-                        <div className="text-right min-w-[100px]">
+                        <div className="text-right min-w-25">
                           <p className="font-mono text-[10px]">
                               {pipeline.last_run_at
                               ? new Date(pipeline.last_run_at).toLocaleString("id-ID", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })
@@ -390,7 +373,7 @@ export default function PipelinePage() {
                                 e.stopPropagation()
                                 toggleActive(pipeline.id)
                               }}
-                              title={pipeline.is_active ? "Nonaktifkan" : "Aktifkan"}
+                              title={pipeline.is_active ? "Nonaktifkan jadwal" : "Aktifkan jadwal"}
                             >
                               {pipeline.is_active ? (
                                 <ClockIcon className="size-3.5" />
@@ -399,7 +382,7 @@ export default function PipelinePage() {
                               )}
                             </Button>
                             <div className="w-px h-5 bg-border/60 mx-1" />
-                            {pipeline.status === "running" ? (
+                            {pipeline.status === "running" || pipeline.status === "queued" ? (
                               <Button
                                 variant="outline"
                                 size="sm"
